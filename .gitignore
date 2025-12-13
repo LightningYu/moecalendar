@@ -18,7 +18,7 @@ migrate_working_dir/
 *.iws
 .idea/
 # VS Code related
-.github/
+.github/copilot-instructions.md
 docs/
 
 # The .vscode folder contains launch configuration and tasks you configure in

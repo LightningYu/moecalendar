@@ -1,17 +1,12 @@
+
+import java.util.Properties
+import java.io.FileInputStream
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
-
-import java.util.Properties
-import java.io.FileInputStream
-
-val keystorePropertiesFile = rootProject.file("keystore.properties")
-val keystoreProperties = Properties()
-keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-
 android {
     namespace = "com.lightningyu.moecalendar"
     compileSdk = flutter.compileSdkVersion
@@ -28,13 +23,22 @@ android {
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
-      // Google 签名配置
-    signingConfigs {
+   signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties.getProperty("keyAlias")
-            keyPassword = keystoreProperties.getProperty("keyPassword")
-            storeFile = file(keystoreProperties.getProperty("storeFile"))
-            storePassword = keystoreProperties.getProperty("storePassword")
+            // 从key.properties加载签名信息
+            val keystorePropertiesFile = rootProject.file("app/key.properties")
+            if (keystorePropertiesFile.exists()) {
+                val keystoreProperties = Properties().apply {
+                    load(FileInputStream(keystorePropertiesFile))
+                }
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                
+                enableV1Signing = true
+                enableV2Signing = true
+            }
         }
     }
     defaultConfig {
