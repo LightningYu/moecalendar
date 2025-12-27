@@ -22,7 +22,7 @@
 2. **配置环境变量 (`.env`)**
    在项目根目录创建 `.env` 文件，填入你的 Bangumi API 密钥:
    ```dart
-   BANGUMI_APP_ID=bgm5232693cf5bc89849
+   BANGUMI_APP_ID= 填自己的
    BANGUMI_APP_SECRET=你的_SECRET
    ```
 

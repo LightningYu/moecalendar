@@ -5,6 +5,7 @@ class AppInfo {
   // ============ 应用基本信息 ============
   static const String name = '萌历';
   static const String packageName = 'com.lightningyu.moecalendar';
+  // 版本号标记
   static const String version = '1.0.0';
 
   // ============ 存储相关 ============

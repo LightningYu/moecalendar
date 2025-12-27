@@ -15,7 +15,7 @@ class ApiConfig {
   // 注意：`String.fromEnvironment` 是编译期常量读取方式。
   static const String appId = String.fromEnvironment(
     'BANGUMI_APP_ID',
-    defaultValue: 'bgm5232693cf5bc89849',
+    defaultValue: ' ',
   );
   static const String appSecret = String.fromEnvironment(
     'BANGUMI_APP_SECRET',
