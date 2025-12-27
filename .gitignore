@@ -50,3 +50,4 @@ app.*.map.json
 # Secrets - API keys and sensitive configuration
 /secrets/api_secrets.json
 android/keystore.properties
+android/app/key_base64.txt

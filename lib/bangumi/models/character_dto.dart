@@ -11,9 +11,6 @@ class BangumiCharacterDto {
   final String? roleName;
   final Map<String, dynamic> originalData;
 
-  /// 标记数据是否为完整数据（来自 /v0/characters/{id} 或搜索）
-  final bool isFullData;
-
   BangumiCharacterDto({
     required this.id,
     required this.name,
@@ -25,7 +22,6 @@ class BangumiCharacterDto {
     this.birthDay,
     this.roleName,
     required this.originalData,
-    this.isFullData = false,
   });
 
   String? get listAvatarUrl => avatarGridUrl ?? avatarLargeUrl;
@@ -68,7 +64,6 @@ class BangumiCharacterDto {
       birthDay: birthDay ?? this.birthDay,
       roleName: roleName ?? this.roleName,
       originalData: originalData ?? this.originalData,
-      isFullData: isFullData ?? this.isFullData,
     );
   }
 
@@ -107,14 +102,6 @@ class BangumiCharacterDto {
         }
       }
     }
-
-    final bool hasFullData =
-        json.containsKey('stat') ||
-        json.containsKey('summary') ||
-        json.containsKey('infobox') ||
-        json.containsKey('birth_mon') ||
-        json.containsKey('gender');
-
     return BangumiCharacterDto(
       id: json['id'],
       name: json['name'],
@@ -126,7 +113,6 @@ class BangumiCharacterDto {
       birthDay: json['birth_day'],
       roleName: json['relation'],
       originalData: json,
-      isFullData: hasFullData,
     );
   }
 }

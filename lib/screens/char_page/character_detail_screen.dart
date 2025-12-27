@@ -128,7 +128,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     _onlineDto = widget.bangumiDto;
 
     // 如果是在线模式且数据不完整，加载详情
-    if (!isLocalMode && _onlineDto != null && !_onlineDto!.isFullData) {
+    if (!isLocalMode && _onlineDto != null) {
       _loadOnlineDetail();
     }
   }

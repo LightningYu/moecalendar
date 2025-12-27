@@ -100,7 +100,7 @@ class CalendarService {
     }
 
     parts.add('');
-    parts.add('来自「生日追踪」应用');
+    parts.add('来自「萌历」应用');
 
     return parts.join('\n');
   }

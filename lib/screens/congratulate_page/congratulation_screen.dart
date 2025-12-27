@@ -206,25 +206,25 @@ class _CongratulationScreenState extends State<CongratulationScreen>
       body: Stack(
         children: [
           // Background
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF0B1026), Color(0xFF2B32B2)],
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF0B1026), Color(0xFF2B32B2)],
+                ),
               ),
             ),
           ),
           // Stars
-          CustomPaint(
-            painter: StarrySkyPainter(_particles),
-            size: Size.infinite,
+          Positioned.fill(
+            child: CustomPaint(painter: StarrySkyPainter(_particles)),
           ),
           // Danmaku Layer
           if (_isBirthday)
-            CustomPaint(
-              painter: DanmakuPainter(_danmakuList),
-              size: Size.infinite,
+            Positioned.fill(
+              child: CustomPaint(painter: DanmakuPainter(_danmakuList)),
             ),
           // Content
           Center(
@@ -357,7 +357,7 @@ class StarrySkyPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     for (var p in particles) {
       final paint = Paint()
-        ..color = p.color.withAlpha((p.opacity * 255).toInt())
+        ..color = p.color.withOpacity(p.opacity)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(
         Offset(p.x * size.width, p.y * size.height),
