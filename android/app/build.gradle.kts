@@ -52,21 +52,6 @@ android {
         versionName = flutter.versionName
     }
 
-    val appName = "moecalendar" 
-    android.applicationVariants.all {
-        val variant = this
-        variant.outputs.all {
-            val output = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
-            val abi = output.getFilter(com.android.build.OutputFile.ABI)
-            val fileName = if (abi != null) {
-                "${appName}-v${variant.versionName}-${abi}.apk"
-            } else {
-                "${appName}-v${variant.versionName}-universal.apk"
-            }
-            output.outputFileName = fileName
-        }
-    }
-
 buildTypes {
     release {
             // TODO: Add your own signing config for the release build.

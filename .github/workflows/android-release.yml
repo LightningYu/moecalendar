@@ -98,6 +98,39 @@ jobs:
           # 3. 构建分架构 APK (arm64-v8a, armeabi-v7a, x86_64)
           flutter build apk --release --split-per-abi --dart-define-from-file=.env
 
+      - name: Rename artifacts for release
+        run: |
+          set -euo pipefail
+          # 获取版本号 (从 pubspec.yaml)
+          VERSION=$(grep 'version: ' pubspec.yaml | sed 's/version: //')
+          APP_NAME="moecalendar"
+          
+          echo "Renaming artifacts for version $VERSION..."
+          
+          # 重命名 AAB
+          if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+            mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/${APP_NAME}-v${VERSION}.aab
+          fi
+          
+          # 重命名 APKs
+          cd build/app/outputs/flutter-apk/
+          
+          # 通用包
+          if [ -f app-release.apk ]; then
+            mv app-release.apk ${APP_NAME}-v${VERSION}-universal.apk
+          fi
+          
+          # 分架构包
+          if [ -f app-arm64-v8a-release.apk ]; then
+            mv app-arm64-v8a-release.apk ${APP_NAME}-v${VERSION}-arm64-v8a.apk
+          fi
+          if [ -f app-armeabi-v7a-release.apk ]; then
+            mv app-armeabi-v7a-release.apk ${APP_NAME}-v${VERSION}-armeabi-v7a.apk
+          fi
+          if [ -f app-x86_64-release.apk ]; then
+            mv app-x86_64-release.apk ${APP_NAME}-v${VERSION}-x86_64.apk
+          fi
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -111,6 +144,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
           files: |
             build/app/outputs/flutter-apk/*.apk
             build/app/outputs/bundle/release/*.aab
