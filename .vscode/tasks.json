@@ -1,0 +1,22 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Flutter: Build Android (All-in-One)",
+            "type": "shell",
+            "command": "flutter build apk --release --dart-define-from-file=.env; flutter build appbundle --release --dart-define-from-file=.env",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Flutter: Build Android (Split APKs)",
+            "type": "shell",
+            "command": "flutter build apk --release --split-per-abi --dart-define-from-file=.env",
+            "group": "build",
+            "problemMatcher": []
+        }
+    ]
+}

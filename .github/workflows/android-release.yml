@@ -1,0 +1,116 @@
+name: Android Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Validate signing secrets
+        env:
+          KEY_STORE: ${{ secrets.KEY_STORE }}
+          KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEY_STORE}" ] || [ -z "${KEY_PROPERTIES}" ]; then
+            echo "Missing GitHub Secrets: KEY_STORE and/or KEY_PROPERTIES" >&2
+            exit 1
+          fi
+
+      - name: Restore keystore & key.properties
+        env:
+          KEY_STORE: ${{ secrets.KEY_STORE }}
+          KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p android/app
+
+          echo "$KEY_STORE" | base64 --decode > android/app/key.jks
+
+          # Write properties (may contain newlines)
+          printf '%s' "$KEY_PROPERTIES" > android/app/key.properties
+
+          # Normalize storeFile so Gradle can find the keystore
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('android/app/key.properties')
+          text = path.read_text(encoding='utf-8')
+
+          lines = []
+          has_store = False
+          for line in text.splitlines():
+            if line.strip().startswith('storeFile='):
+              lines.append('storeFile=key.jks')
+              has_store = True
+            else:
+              lines.append(line)
+
+          if not has_store:
+            lines.append('storeFile=key.jks')
+
+          path.write_text('\n'.join(lines).rstrip() + '\n', encoding='utf-8')
+          PY
+
+      - name: Create .env file
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: |
+          printf '%s' "$ENV_FILE" > .env
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android (APK + AAB)
+        run: |
+          set -euo pipefail
+          # 1. 构建 AAB (用于 Google Play)
+          flutter build appbundle --release --dart-define-from-file=.env
+          
+          # 2. 构建通用 Fat APK (包含所有架构)
+          flutter build apk --release --dart-define-from-file=.env
+          
+          # 3. 构建分架构 APK (arm64-v8a, armeabi-v7a, x86_64)
+          flutter build apk --release --split-per-abi --dart-define-from-file=.env
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          if-no-files-found: error
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
+
+      - name: Create GitHub Release (tag build)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
