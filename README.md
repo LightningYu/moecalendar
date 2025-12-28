@@ -20,7 +20,9 @@
   </p>
 </p>
 
-![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.bilibili.com%2Fx%2Frelation%2Fstat%3Fvmid%3D1938216007&query=data.follower&style=for-the-badge&logo=bilibili&label=bilibili%3A%E9%9B%B7%E9%9C%86%E5%AE%87%E5%AE%87%E4%BE%A0&labelColor=%23ffc1cc&color=%23d1e0f0&link=https%3A%2F%2Fspace.bilibili.com%2F1938216007)
+[<img alt="Dynamic JSON Badge" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.bilibili.com%2Fx%2Frelation%2Fstat%3Fvmid%3D1938216007&query=data.follower&style=for-the-badge&logo=bilibili&label=bilibili%3A%E9%9B%B7%E9%9C%86%E5%AE%87%E5%AE%87%E4%BE%A0&labelColor=%23ffc1cc&color=%23d1e0f0&link=https%3A%2F%2Fspace.bilibili.com%2F1938216007">](https://space.bilibili.com/1938216007)
+[<img alt="GitHub Release" src="https://img.shields.io/github/v/release/lightningyu/moecalendar?sort=semver&display_name=tag&style=for-the-badge&label=Download">](https://github.com/LightningYu/moecalendar/releases)
+
 
 ## ✨ 功能特性
 
