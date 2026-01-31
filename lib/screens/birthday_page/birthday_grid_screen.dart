@@ -6,6 +6,7 @@ import '../../providers/character_provider.dart';
 import '../../models/character_model.dart';
 import '../../config/routes/app_routes.dart';
 import '../../utils/zodiac_utils.dart';
+import '../../config/design_constants.dart';
 
 class BirthdayGridScreen extends StatefulWidget {
   const BirthdayGridScreen({super.key});
@@ -60,12 +61,12 @@ class _BirthdayGridScreenState extends State<BirthdayGridScreen> {
           });
 
           return GridView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(DesignConstants.spacing),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               childAspectRatio: 0.85, // Taller cards for better balance
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              crossAxisSpacing: DesignConstants.spacing,
+              mainAxisSpacing: DesignConstants.spacing,
             ),
             itemCount: sortedList.length,
             itemBuilder: (context, index) {

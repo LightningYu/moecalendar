@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/character_model.dart';
 import '../../config/routes/app_routes.dart';
+import '../../config/design_constants.dart';
 
 class SelfBirthdayCard extends StatefulWidget {
   final Character character;
@@ -119,13 +120,15 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: DesignConstants.spacing * 1.25),
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(
+                horizontal: DesignConstants.spacingXl,
+              ),
+              padding: const EdgeInsets.all(DesignConstants.spacing),
               decoration: BoxDecoration(
                 border: Border.all(color: Theme.of(context).dividerColor),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(DesignConstants.radiusLg),
               ),
               child: Column(
                 children: [

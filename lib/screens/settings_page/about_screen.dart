@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_info.dart';
+import '../../config/design_constants.dart';
 
 /// 关于应用页面
 class AboutScreen extends StatelessWidget {
@@ -17,20 +18,20 @@ class AboutScreen extends StatelessWidget {
         children: [
           // 应用信息卡片
           _buildAppInfoCard(theme),
-          const SizedBox(height: 16),
+          const SizedBox(height: DesignConstants.spacing),
 
           // 开发者信息卡片
           _buildDeveloperCard(theme, colorScheme),
-          const SizedBox(height: 16),
+          const SizedBox(height: DesignConstants.spacing),
 
           // 版本信息
           _buildVersionCard(theme),
-          const SizedBox(height: 16),
+          const SizedBox(height: DesignConstants.spacing),
 
           // 版权信息
           Center(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(DesignConstants.spacing),
               child: Column(
                 children: [
                   Text(
@@ -39,7 +40,7 @@ class AboutScreen extends StatelessWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: DesignConstants.spacingXs),
                   Text(
                     AppInfo.license,
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -57,18 +58,23 @@ class AboutScreen extends StatelessWidget {
 
   Widget _buildAppInfoCard(ThemeData theme) {
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      margin: const EdgeInsets.fromLTRB(
+        DesignConstants.spacing,
+        DesignConstants.spacing,
+        DesignConstants.spacing,
+        0,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(DesignConstants.spacing * 1.25),
         child: Column(
           children: [
             // 应用图标
             SizedBox(
-              width: 80,
-              height: 80,
+              width: DesignConstants.avatarSizeLg,
+              height: DesignConstants.avatarSizeLg,
               child: Image.asset('assets/img/ico.webp')
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: DesignConstants.spacing),
 
             // 应用名称
             Text(

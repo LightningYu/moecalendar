@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:lunar/lunar.dart';
 import '../../models/character_model.dart';
 import '../../providers/character_provider.dart';
+import '../../config/design_constants.dart';
 
 class AddManualCharacterScreen extends StatefulWidget {
   const AddManualCharacterScreen({super.key});
@@ -83,7 +84,7 @@ class _AddManualCharacterScreenState extends State<AddManualCharacterScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('手动添加人物')),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(DesignConstants.spacing),
         child: Form(
           key: _formKey,
           child: ListView(
@@ -96,7 +97,7 @@ class _AddManualCharacterScreenState extends State<AddManualCharacterScreen> {
                 ),
                 validator: (value) => value!.isEmpty ? '请输入姓名' : null,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: DesignConstants.spacing * 1.25),
               ListTile(
                 title: const Text('生日日期'),
                 subtitle: Text(_getDateText()),

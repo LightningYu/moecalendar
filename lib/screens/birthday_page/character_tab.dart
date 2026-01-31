@@ -6,6 +6,7 @@ import '../../models/character_model.dart';
 import '../../config/routes/app_routes.dart';
 import '../../utils/zodiac_utils.dart';
 import '../../widgets/local_character_list_item.dart';
+import '../../config/design_constants.dart';
 
 enum SortType { grouped, date }
 
@@ -165,23 +166,27 @@ class _CharacterTabState extends State<CharacterTab> {
       builder: (BuildContext context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              vertical: DesignConstants.spacing,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 16.0),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    bottom: DesignConstants.spacing,
+                  ),
                   child: Text(
                     '添加新角色',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                 ),
                 const Divider(height: 1),
-                const SizedBox(height: 8),
+                const SizedBox(height: DesignConstants.spacingSm),
                 ListTile(
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 24.0,
-                    vertical: 8.0,
+                    horizontal: DesignConstants.spacingLg,
+                    vertical: DesignConstants.spacingSm,
                   ),
                   leading: CircleAvatar(
                     backgroundColor: Theme.of(
@@ -199,11 +204,11 @@ class _CharacterTabState extends State<CharacterTab> {
                     context.push(AppRoutes.addManualPath);
                   },
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: DesignConstants.spacingXs),
                 ListTile(
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 24.0,
-                    vertical: 8.0,
+                    horizontal: DesignConstants.spacingLg,
+                    vertical: DesignConstants.spacingSm,
                   ),
                   leading: CircleAvatar(
                     backgroundColor: Theme.of(
@@ -221,7 +226,7 @@ class _CharacterTabState extends State<CharacterTab> {
                     context.push(AppRoutes.addBangumiPath);
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: DesignConstants.spacing),
               ],
             ),
           ),
@@ -352,14 +357,14 @@ class _CharacterTabState extends State<CharacterTab> {
               size: 64,
               color: Theme.of(context).hintColor,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: DesignConstants.iconSizeLg),
             Text(
               _searchQuery.isNotEmpty ? '未找到匹配人物' : '暂无人物',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).hintColor,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: DesignConstants.spacingSm),
             Text(
               _searchQuery.isNotEmpty ? '尝试其他关键词' : '点击右下角按钮添加',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -394,7 +399,10 @@ class _CharacterTabState extends State<CharacterTab> {
       }
 
       return ListView.builder(
-        padding: const EdgeInsets.only(top: 8, bottom: 100),
+        padding: const EdgeInsets.only(
+          top: DesignConstants.spacingSm,
+          bottom: DesignConstants.listBottomPadding,
+        ),
         itemCount: sortedList.length,
         itemBuilder: (context, index) {
           final character = sortedList[index];
@@ -428,12 +436,19 @@ class _CharacterTabState extends State<CharacterTab> {
 
       return CustomScrollView(
         slivers: [
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+          const SliverToBoxAdapter(
+            child: SizedBox(height: DesignConstants.spacingSm),
+          ),
           // 自己放在最上面
           if (selfCharacter != null) ...[
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: const EdgeInsets.fromLTRB(
+                  DesignConstants.spacing,
+                  DesignConstants.spacingSm,
+                  DesignConstants.spacing,
+                  DesignConstants.spacingXs,
+                ),
                 child: Text(
                   '你',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -460,7 +475,12 @@ class _CharacterTabState extends State<CharacterTab> {
           if (manualCharacters.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                padding: const EdgeInsets.fromLTRB(
+                  DesignConstants.spacing,
+                  DesignConstants.spacing,
+                  DesignConstants.spacing,
+                  DesignConstants.spacingXs,
+                ),
                 child: Text(
                   '手动添加 (${manualCharacters.length})',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -492,7 +512,12 @@ class _CharacterTabState extends State<CharacterTab> {
           if (bangumiCharacters.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                padding: const EdgeInsets.fromLTRB(
+                  DesignConstants.spacing,
+                  DesignConstants.spacing,
+                  DesignConstants.spacing,
+                  DesignConstants.spacingXs,
+                ),
                 child: Text(
                   'Bangumi (${bangumiCharacters.length})',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -521,7 +546,9 @@ class _CharacterTabState extends State<CharacterTab> {
               }, childCount: bangumiCharacters.length),
             ),
           ],
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          const SliverToBoxAdapter(
+            child: SizedBox(height: DesignConstants.listBottomPadding),
+          ),
         ],
       );
     }
