@@ -82,6 +82,9 @@ class DesignConstants {
   static const double tagFontSize = 11.0;
 
   // ============ 卡片样式 ============
+  // 注意: 卡片相关常量引用基础间距值以保持一致性
+  // 这样可以在修改基础值时自动更新卡片样式
+  
   /// 卡片水平外边距
   static const double cardMarginH = spacing;
 
