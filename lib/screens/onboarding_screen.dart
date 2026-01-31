@@ -7,6 +7,7 @@ import '../providers/theme_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/permission_service.dart';
 import '../config/routes/app_routes.dart';
+import '../config/design_constants.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -144,14 +145,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         controlsBuilder: (context, details) {
           final isLastStep = _currentStep == 3;
           return Padding(
-            padding: const EdgeInsets.only(top: 24.0),
+            padding: const EdgeInsets.only(
+              top: DesignConstants.spacingLg,
+            ),
             child: Row(
               children: [
                 FilledButton(
                   onPressed: details.onStepContinue,
                   child: Text(isLastStep ? '完成设置' : '下一步'),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: DesignConstants.spacingMd),
                 if (_currentStep > 0)
                   TextButton(
                     onPressed: details.onStepCancel,
@@ -203,7 +206,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // child: Icon(Icons.cake, size: 80, color: theme.colorScheme.primary),
           child: Image.asset('assets/img/ico.webp', width: 128, height: 128),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: DesignConstants.spacingLg),
         Text(
           '''欢迎使用萌历
           Moe Calendar''',
@@ -211,39 +214,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: DesignConstants.spacingMd),
         const Text('这个应用可以帮你记住重要的生日，并在特殊的日子给你惊喜。(其实没有)'),
-        const SizedBox(height: 24),
+        const SizedBox(height: DesignConstants.spacingLg),
         _buildFeatureItem(
           theme,
           Icons.notifications_active_outlined,
           '生日提醒',
           '记录你和朋友的生日',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: DesignConstants.spacingMd),
         _buildFeatureItem(
           theme,
           Icons.cloud_sync_outlined,
           'Bangumi 集成',
           '从 Bangumi 导入喜欢的角色',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: DesignConstants.spacingMd),
         _buildFeatureItem(
           theme,
           Icons.color_lens_outlined,
           '个性化主题',
           '随心定制界面风格',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: DesignConstants.spacingMd),
         _buildFeatureItem(
           theme,
           Icons.calendar_today_outlined,
           '一键导出',
           '导出为系统日历事件',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: DesignConstants.spacingMd),
         _buildFeatureItem(theme, Icons.tv_outlined, 'BILBIL搜索:雷霆宇宇侠', '别笑'),
-        const SizedBox(height: 12),
+        const SizedBox(height: DesignConstants.spacingMd),
         _buildFeatureItem(
           theme,
           Icons.error_outlined,
@@ -266,14 +269,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(DesignConstants.spacingSm + 2),
           decoration: BoxDecoration(
             color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
           ),
           child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: DesignConstants.spacing),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,12 +305,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('设置你的生日，应用会为你准备专属的生日页面。'),
-        const SizedBox(height: 16),
+        const SizedBox(height: DesignConstants.spacing),
         Card(
           elevation: 0,
           color: theme.colorScheme.surfaceContainerHighest.withAlpha(77),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
             side: BorderSide(color: theme.colorScheme.outlineVariant),
           ),
           child: Column(
@@ -358,12 +361,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('选择你喜欢的颜色和主题模式。'),
-        const SizedBox(height: 16),
+        const SizedBox(height: DesignConstants.spacing),
         Text('主题颜色', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 12),
+        const SizedBox(height: DesignConstants.spacingMd),
         Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: DesignConstants.spacingMd,
+          runSpacing: DesignConstants.spacingMd,
           children: colors.map((color) {
             final isSelected = _selectedColor == color;
             return GestureDetector(
@@ -394,9 +397,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             );
           }).toList(),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: DesignConstants.spacingLg),
         Text('主题模式', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 12),
+        const SizedBox(height: DesignConstants.spacingMd),
         SegmentedButton<ThemeMode>(
           segments: const [
             ButtonSegment(
@@ -444,16 +447,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const Text(
               'Bangumi 是一个动漫、游戏追踪平台。连接后可以快速导入你收藏的角色生日。\n\nPS:不登录也可以正常使用搜索添加角色的功能,建议之前有账号的可以登录',
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: DesignConstants.spacing),
             Card(
               elevation: 0,
               color: theme.colorScheme.surfaceContainerHighest.withAlpha(77),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
                 side: BorderSide(color: theme.colorScheme.outlineVariant),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(DesignConstants.spacing),
                 child: Column(
                   children: [
                     Row(
@@ -514,7 +517,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: DesignConstants.spacing),
                     SizedBox(
                       width: double.infinity,
                       child: isLoggedIn
