@@ -357,7 +357,7 @@ class _CharacterTabState extends State<CharacterTab> {
               size: 64,
               color: Theme.of(context).hintColor,
             ),
-            const SizedBox(height: DesignConstants.iconSizeLg),
+            const SizedBox(height: DesignConstants.spacing),
             Text(
               _searchQuery.isNotEmpty ? '未找到匹配人物' : '暂无人物',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(

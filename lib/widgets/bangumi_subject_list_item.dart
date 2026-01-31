@@ -33,7 +33,7 @@ class BangumiSubjectListItem extends StatelessWidget {
             children: [
               // 封面图 - 使用较大尺寸展示高精度图片
               ClipRRect(
-                borderRadius: BorderRadius.circular(DesignConstants.spacingSm),
+                borderRadius: BorderRadius.circular(DesignConstants.radiusSm),
                 child: Container(
                   width: DesignConstants.avatarSizeLg,
                   height: 110,
