@@ -7,12 +7,16 @@ import 'providers/character_provider.dart';
 import 'providers/theme_provider.dart';
 import 'utils/router.dart';
 import 'services/storage_service.dart';
+import 'services/import_intent_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 初始化存储
   await StorageService().init();
+
+  // 初始化 Intent 接收
+  ImportIntentService.init();
 
   runApp(const MyApp());
 }

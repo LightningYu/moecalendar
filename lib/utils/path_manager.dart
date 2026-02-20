@@ -9,9 +9,11 @@ class PathManager {
   PathManager._internal();
 
   Directory? _documentsDir;
+  Directory? _cacheDir;
 
   Future<void> init() async {
     _documentsDir = await getApplicationDocumentsDirectory();
+    _cacheDir = await getTemporaryDirectory();
   }
 
   String get documentsPath {
@@ -19,6 +21,13 @@ class PathManager {
       throw Exception('PathManager not initialized');
     }
     return _documentsDir!.path;
+  }
+
+  String get cachePath {
+    if (_cacheDir == null) {
+      throw Exception('PathManager not initialized');
+    }
+    return _cacheDir!.path;
   }
 
   String get dataFilePath => path.join(documentsPath, AppInfo.dataFileName);

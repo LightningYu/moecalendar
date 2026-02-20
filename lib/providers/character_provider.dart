@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/character_model.dart';
 import '../services/storage_service.dart';
-import '../services/image_download_service.dart';
+import '../services/task_pool_service.dart';
 import '../bangumi/bangumi.dart';
 
 class CharacterProvider extends ChangeNotifier {
@@ -13,12 +13,12 @@ class CharacterProvider extends ChangeNotifier {
   }
 
   final StorageService _storageService = StorageService();
-  final ImageDownloadService _imageService = ImageDownloadService();
+  final TaskPoolService _taskPool = TaskPoolService();
 
   List<Character> _characters = [];
 
-  /// 获取图片下载服务（供 UI 监听进度）
-  ImageDownloadService get imageDownloadService => _imageService;
+  /// 获取任务池服务（供 UI 监听进度）
+  TaskPoolService get taskPoolService => _taskPool;
 
   UnmodifiableListView<Character> get characters =>
       UnmodifiableListView(_characters);
@@ -44,10 +44,12 @@ class CharacterProvider extends ChangeNotifier {
   Future<void> _init() async {
     await _loadData();
     await _migrateAvatarColors();
-    _imageService.onImageReady = _onImageReady;
-    _imageService.addListener(_onDownloadProgress);
-    // 恢复之前未完成的下载任务
-    await _imageService.init();
+    // 设置任务池回调
+    _taskPool.onCharacterReady = _onCharacterReady;
+    _taskPool.onImageReady = _onImageReady;
+    _taskPool.addListener(_onTaskPoolProgress);
+    // 恢复之前未完成的任务
+    await _taskPool.init();
     // 扫描库中缺少本地图片的 Bangumi 角色，提交下载
     _syncDownloads();
   }
@@ -110,93 +112,42 @@ class CharacterProvider extends ChangeNotifier {
 
   /// 批量添加 Bangumi 角色（非阻塞）
   ///
-  /// 直接从搜索 DTO 创建角色入库（DTO 中已有完整 JSON 数据），
-  /// 缺少生日的角色直接跳过不入库。
-  /// 入库后由 [_syncDownloads] 驱动图片下载。
+  /// 直接将 bangumiId 提交到统一任务池，由任务池负责：
+  /// 拉取详情 → 判断生日 → 入库 → 下载图片
   void addBangumiCharactersAsync(List<BangumiCharacterDto> dtoList) {
-    _processBangumiCharactersBatch(dtoList);
+    final items = dtoList
+        .map((dto) => (bangumiId: dto.id, name: dto.displayName))
+        .toList();
+    _taskPool.submitAll(items);
   }
 
-  /// 批量处理 Bangumi 角色：只入库有生日的，图片下载由库数据驱动
-  Future<void> _processBangumiCharactersBatch(
-    List<BangumiCharacterDto> dtoList,
-  ) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    int addedCount = 0;
-    int skippedCount = 0;
-
-    for (int i = 0; i < dtoList.length; i++) {
-      final dto = dtoList[i];
-
-      // 缺少生日的直接跳过
-      if (!dto.hasBirthday) {
-        skippedCount++;
-        continue;
-      }
-
-      final String id = '${now}_$i';
-      final int notificationId = (now + i) & 0x7FFFFFFF;
-
-      final newCharacter = BangumiCharacter(
-        id: id,
-        notificationId: notificationId,
-        name: dto.displayName,
-        birthYear: dto.birthYear,
-        birthMonth: dto.birthMon!,
-        birthDay: dto.birthDay!,
-        notify: true,
-        avatarPath: dto.avatarLargeUrl,
-        bangumiId: dto.id,
-        originalData: dto.originalData,
-        gridAvatarPath: dto.avatarGridUrl,
-        largeAvatarPath: dto.avatarLargeUrl,
-        avatarColor: Character.generateAvatarColor(),
-      );
-
-      await _storageService.saveCharacter(newCharacter);
-      addedCount++;
-    }
-
-    if (addedCount > 0) {
-      await _loadData();
-      // 入库后扫描并提交图片下载
-      _syncDownloads();
-    }
-
-    debugPrint('批量添加完成: 添加 $addedCount 个，跳过 $skippedCount 个（无生日）');
-  }
-
-  /// 扫描库中所有 Bangumi 角色，将缺少本地图片的提交到下载队列
-  ///
-  /// 下载服务是响应库数据的——库里有什么角色，就下载什么图片。
+  /// 扫描库中所有 Bangumi 角色，将缺少本地图片的提交到任务池
   void _syncDownloads() {
     for (final c in _characters) {
       if (c is! BangumiCharacter) continue;
+
       // 已有完成的任务就跳过
-      final existing = _imageService.getTask(c.id);
+      final existing = _taskPool.getTask(c.bangumiId);
       if (existing != null &&
-          existing.status == DownloadStatus.completed &&
-          !existing.hasUnfinishedWork) {
+          (existing.status == TaskStatus.completed ||
+              existing.status == TaskStatus.pending ||
+              existing.status == TaskStatus.running)) {
         continue;
       }
-      // 已有进行中的任务也跳过
-      if (existing != null &&
-          (existing.status == DownloadStatus.pending ||
-              existing.status == DownloadStatus.downloading)) {
-        continue;
-      }
+
       // 有网络 URL 但缺少本地缓存 → 加入队列
       final needsGrid =
           c.gridAvatarPath != null &&
           c.gridAvatarPath!.startsWith('http') &&
-          _imageService.getCachedGridPath(c.id) == null;
+          _taskPool.getCachedGridPath(c.id) == null;
       final needsLarge =
           c.largeAvatarPath != null &&
           c.largeAvatarPath!.startsWith('http') &&
-          _imageService.getCachedLargePath(c.id) == null;
+          _taskPool.getCachedLargePath(c.id) == null;
 
       if (needsGrid || needsLarge) {
-        _imageService.enqueue(
+        _taskPool.submitImageDownload(
+          bangumiId: c.bangumiId,
           characterId: c.id,
           characterName: c.name,
           gridUrl: needsGrid ? c.gridAvatarPath : null,
@@ -264,6 +215,44 @@ class CharacterProvider extends ChangeNotifier {
     return updated;
   }
 
+  /// 任务池回调：角色入库
+  /// 返回入库后的 characterId
+  Future<String?> _onCharacterReady(BangumiCharacterDto dto) async {
+    if (!dto.hasBirthday) return null;
+
+    // 检查是否已有相同 bangumiId 的角色
+    final existing = _characters.whereType<BangumiCharacter>().where(
+      (c) => c.bangumiId == dto.id,
+    );
+    if (existing.isNotEmpty) {
+      return existing.first.id;
+    }
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final id = now.toString();
+    final notificationId = now & 0x7FFFFFFF;
+
+    final newChar = BangumiCharacter(
+      id: id,
+      notificationId: notificationId,
+      name: dto.displayName,
+      birthYear: dto.birthYear,
+      birthMonth: dto.birthMon!,
+      birthDay: dto.birthDay!,
+      notify: true,
+      avatarPath: dto.avatarLargeUrl,
+      bangumiId: dto.id,
+      originalData: dto.originalData,
+      gridAvatarPath: dto.avatarGridUrl,
+      largeAvatarPath: dto.avatarLargeUrl,
+      avatarColor: Character.generateAvatarColor(),
+    );
+
+    await _storageService.saveCharacter(newChar);
+    await _loadData();
+    return id;
+  }
+
   /// 图片下载回调 → 更新角色的本地路径（每下载完一张就调用一次）
   Future<void> _onImageReady(
     String characterId,
@@ -287,14 +276,14 @@ class CharacterProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 下载进度更新 → 通知 UI 刷新
-  void _onDownloadProgress() {
+  /// 任务池进度更新 → 通知 UI 刷新
+  void _onTaskPoolProgress() {
     notifyListeners();
   }
 
   @override
   void dispose() {
-    _imageService.removeListener(_onDownloadProgress);
+    _taskPool.removeListener(_onTaskPoolProgress);
     super.dispose();
   }
 
@@ -332,43 +321,73 @@ class CharacterProvider extends ChangeNotifier {
   ///
   /// [mode] 'merge' 合并（保留已有，补充新的），'replace' 完全替换
   /// 返回 (added, updated, total)
-  Future<({int added, int updated, int total})> importCharacters(
+  /// 对于只含 bangumiId 的 Bangumi 角色，会提交到任务池拉取详情
+  Future<({int added, int updated, int total, int taskSubmitted})>
+  importCharacters(
     List<Character> imported, {
     String mode = 'merge',
+    List<int> bangumiIdsOnly = const [],
   }) async {
     if (mode == 'replace') {
       await _storageService.saveAll(imported);
       await _loadData();
       await _migrateAvatarColors();
       _syncDownloads();
-      return (added: imported.length, updated: 0, total: imported.length);
+      // 将 bangumiId-only 的提交到任务池
+      for (final bid in bangumiIdsOnly) {
+        _taskPool.submit(bid);
+      }
+      return (
+        added: imported.length,
+        updated: 0,
+        total: imported.length,
+        taskSubmitted: bangumiIdsOnly.length,
+      );
     }
 
-    // merge 模式
+    // merge 模式：同名同日期去重
     final existing = await _storageService.getCharacters();
-    final existingIds = existing.map((c) => c.id).toSet();
-    // 对于 BangumiCharacter，也按 bangumiId 去重
     final existingBangumiIds = existing
         .whereType<BangumiCharacter>()
         .map((c) => c.bangumiId)
         .toSet();
+
+    // 构建"名字+月+日"的去重集合
+    final existingKeys = <String>{};
+    for (final c in existing) {
+      existingKeys.add('${c.name}_${c.birthMonth}_${c.birthDay}');
+    }
 
     int added = 0;
     int updated = 0;
 
     for (final c in imported) {
       if (c is BangumiCharacter && existingBangumiIds.contains(c.bangumiId)) {
-        // bangumiId 已存在 → 跳过
-        continue;
+        continue; // bangumiId 已存在 → 跳过
       }
-      if (existingIds.contains(c.id)) {
-        // id 完全匹配 → 更新
-        final idx = existing.indexWhere((e) => e.id == c.id);
-        existing[idx] = c;
+
+      final key = '${c.name}_${c.birthMonth}_${c.birthDay}';
+      if (existingKeys.contains(key)) {
+        continue; // 同名同日期 → 跳过
+      }
+
+      final existingIdx = existing.indexWhere((e) => e.id == c.id);
+      if (existingIdx >= 0) {
+        existing[existingIdx] = c;
         updated++;
       } else {
         existing.add(c);
         added++;
+      }
+      existingKeys.add(key);
+    }
+
+    // 将 bangumiId-only 中不重复的提交到任务池
+    int taskSubmitted = 0;
+    for (final bid in bangumiIdsOnly) {
+      if (!existingBangumiIds.contains(bid)) {
+        _taskPool.submit(bid);
+        taskSubmitted++;
       }
     }
 
@@ -376,7 +395,12 @@ class CharacterProvider extends ChangeNotifier {
     await _loadData();
     await _migrateAvatarColors();
     _syncDownloads();
-    return (added: added, updated: updated, total: existing.length);
+    return (
+      added: added,
+      updated: updated,
+      total: existing.length,
+      taskSubmitted: taskSubmitted,
+    );
   }
 
   Future<void> _repairSelfFlag() async {

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +8,10 @@ import '../../providers/character_provider.dart';
 import '../../services/data_sync_service.dart';
 
 class DataSyncScreen extends StatefulWidget {
-  const DataSyncScreen({super.key});
+  /// 如果是通过 intent-filter 打开的 JSON 文件内容，传入此参数自动进入导入流程
+  final String? initialImportJson;
+
+  const DataSyncScreen({super.key, this.initialImportJson});
 
   @override
   State<DataSyncScreen> createState() => _DataSyncScreenState();
@@ -17,18 +21,54 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
   final DataSyncService _syncService = DataSyncService();
   bool _isLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialImportJson != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _processImport(widget.initialImportJson!);
+      });
+    }
+  }
+
   // ============ 导出 ============
 
-  Future<void> _exportToFile() async {
+  /// 导出 JSON 并让用户选择保存位置
+  Future<void> _exportSaveLocal() async {
     setState(() => _isLoading = true);
     try {
-      final filePath = await _syncService.exportToFile();
+      final export = await _syncService.exportToBytes();
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: '选择保存位置',
+        fileName: export.fileName,
+        bytes: export.bytes,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
       if (!mounted) return;
-      // 使用系统分享
-      await SharePlus.instance.share(ShareParams(files: [XFile(filePath)]));
+      if (savedPath != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('已保存到: $savedPath')));
+      }
     } catch (e) {
       if (!mounted) return;
-      _showError('导出失败: $e');
+      _showError('保存失败: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// 导出并分享到其他应用
+  Future<void> _exportAndShare() async {
+    setState(() => _isLoading = true);
+    try {
+      final tempPath = await _syncService.exportToTempFile();
+      if (!mounted) return;
+      await SharePlus.instance.share(ShareParams(files: [XFile(tempPath)]));
+    } catch (e) {
+      if (!mounted) return;
+      _showError('分享失败: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -56,21 +96,30 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
   Future<void> _importFromFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
+        dialogTitle: '选择导入文件',
         type: FileType.custom,
         allowedExtensions: ['json'],
+        withData: true,
       );
       if (result == null || result.files.isEmpty) return;
 
-      final filePath = result.files.single.path;
-      if (filePath == null) return;
-
-      final content = await _syncService.readFile(filePath);
-      if (content == null) {
-        if (mounted) _showError('无法读取文件');
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        if (mounted) _showError('无法读取文件内容，请检查文件权限');
         return;
       }
 
+      final content = utf8.decode(bytes);
       await _processImport(content);
+    } on PlatformException catch (e) {
+      if (mounted) {
+        if (e.code == 'read_external_storage_denied') {
+          _showError('缺少存储权限，请在系统设置中授予应用存储权限后重试');
+        } else {
+          _showError('文件访问失败: ${e.message}');
+        }
+      }
     } catch (e) {
       if (mounted) _showError('导入失败: $e');
     }
@@ -97,86 +146,222 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
       return;
     }
 
-    if (parsed.characters.isEmpty) {
+    if (parsed.isEmpty) {
       _showError('数据中没有角色信息');
       return;
     }
 
     if (!mounted) return;
 
-    // 让用户选择导入模式
-    final mode = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('导入数据'),
-        content: Text(
-          '检测到 ${parsed.characters.length} 个角色。\n\n'
-          '请选择导入方式：',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'merge'),
-            child: const Text('合并（保留已有）'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, 'replace'),
-            child: const Text('替换（覆盖全部）'),
-          ),
-        ],
-      ),
-    );
-
-    if (mode == null || !mounted) return;
-
-    // 替换模式二次确认
-    if (mode == 'replace') {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('确认替换'),
-          content: const Text('替换模式将删除当前所有角色数据，不可撤销！\n确定要继续吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('确认替换'),
-            ),
-          ],
-        ),
-      );
-      if (confirm != true || !mounted) return;
-    }
+    // 显示预览对话框
+    final confirmed = await _showImportPreview(parsed);
+    if (confirmed == null || !mounted) return;
 
     setState(() => _isLoading = true);
     try {
       final provider = Provider.of<CharacterProvider>(context, listen: false);
       final result = await provider.importCharacters(
-        parsed.characters,
-        mode: mode,
+        parsed.allFullCharacters,
+        mode: confirmed,
+        bangumiIdsOnly: parsed.bangumiIds,
       );
 
       if (!mounted) return;
 
-      final msg = mode == 'replace'
-          ? '替换完成：共 ${result.total} 个角色'
-          : '合并完成：新增 ${result.added} 个，更新 ${result.updated} 个';
+      final parts = <String>[];
+      if (confirmed == 'replace') {
+        parts.add('替换完成：共 ${result.total} 个角色');
+      } else {
+        if (result.added > 0) parts.add('新增 ${result.added} 个');
+        if (result.updated > 0) parts.add('更新 ${result.updated} 个');
+        if (parts.isEmpty) parts.add('无新数据');
+      }
+      if (result.taskSubmitted > 0) {
+        parts.add('${result.taskSubmitted} 个 Bangumi 角色将在下载池中处理');
+      }
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parts.join('，'))));
     } catch (e) {
       if (mounted) _showError('导入失败: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// 显示导入预览对话框
+  ///
+  /// 返回 'merge'、'replace' 或 null（取消）
+  Future<String?> _showImportPreview(ImportParseResult parsed) {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        // 预览最多显示 5 个条目
+        const previewLimit = 5;
+
+        return AlertDialog(
+          title: const Text('导入预览'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 统计信息
+                  Text(
+                    '检测到 ${parsed.totalCount} 个角色',
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                  if (parsed.manualCharacters.isNotEmpty)
+                    Text('  手动角色: ${parsed.manualCharacters.length} 个'),
+                  if (parsed.fullBangumiCharacters.isNotEmpty)
+                    Text(
+                      '  Bangumi 角色(完整): ${parsed.fullBangumiCharacters.length} 个',
+                    ),
+                  if (parsed.bangumiIds.isNotEmpty)
+                    Text('  Bangumi 角色(仅ID): ${parsed.bangumiIds.length} 个'),
+
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  // 手动角色预览
+                  if (parsed.manualCharacters.isNotEmpty) ...[
+                    Text(
+                      '手动角色',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...parsed.manualCharacters
+                        .take(previewLimit)
+                        .map(
+                          (c) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              '• ${c.name} (${c.birthMonth}月${c.birthDay}日)',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                        ),
+                    if (parsed.manualCharacters.length > previewLimit)
+                      Text(
+                        '  ...还有 ${parsed.manualCharacters.length - previewLimit} 个',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                  ],
+
+                  // Bangumi 角色预览
+                  if (parsed.fullBangumiCharacters.isNotEmpty) ...[
+                    Text(
+                      'Bangumi 角色',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...parsed.fullBangumiCharacters
+                        .take(previewLimit)
+                        .map(
+                          (c) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              '• ${c.name} (${c.birthMonth}月${c.birthDay}日)',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                        ),
+                    if (parsed.fullBangumiCharacters.length > previewLimit)
+                      Text(
+                        '  ...还有 ${parsed.fullBangumiCharacters.length - previewLimit} 个',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                  ],
+
+                  // bangumiId 列表预览
+                  if (parsed.bangumiIds.isNotEmpty) ...[
+                    Text(
+                      'Bangumi 角色 (需下载详情)',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...parsed.bangumiIds
+                        .take(previewLimit)
+                        .map(
+                          (id) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              '• Bangumi #$id',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                        ),
+                    if (parsed.bangumiIds.length > previewLimit)
+                      Text(
+                        '  ...还有 ${parsed.bangumiIds.length - previewLimit} 个',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消'),
+            ),
+            OutlinedButton(
+              onPressed: () async {
+                // 替换模式二次确认
+                final confirm = await showDialog<bool>(
+                  context: ctx,
+                  builder: (ctx2) => AlertDialog(
+                    title: const Text('确认替换'),
+                    content: const Text('替换模式将删除当前所有角色数据，不可撤销！\n确定要继续吗？'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx2, false),
+                        child: const Text('取消'),
+                      ),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Theme.of(ctx2).colorScheme.error,
+                        ),
+                        onPressed: () => Navigator.pop(ctx2, true),
+                        child: const Text('确认替换'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true && ctx.mounted) {
+                  Navigator.pop(ctx, 'replace');
+                }
+              },
+              child: const Text('替换'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'merge'),
+              child: const Text('合并（保留已有）'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showError(String msg) {
@@ -248,11 +433,19 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                   child: Column(
                     children: [
                       ListTile(
-                        leading: const Icon(Icons.file_download),
-                        title: const Text('导出为文件'),
-                        subtitle: const Text('保存 JSON 文件并分享到其他设备'),
+                        leading: const Icon(Icons.save),
+                        title: const Text('保存 JSON 到本地'),
+                        subtitle: const Text('将备份文件保存到应用文档目录'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: _exportToFile,
+                        onTap: _exportSaveLocal,
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.share),
+                        title: const Text('导出并分享'),
+                        subtitle: const Text('生成 JSON 文件并分享到其他应用或设备'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: _exportAndShare,
                       ),
                       const Divider(height: 1),
                       ListTile(
@@ -314,9 +507,9 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            '导出数据仅包含角色信息（不含头像图片文件）。'
-                            '导入后 Bangumi 角色的头像会自动重新下载。\n\n'
-                            '合并模式：保留已有角色，仅添加新角色。\n'
+                            '导出时 Bangumi 角色仅保存 ID（减小文件体积），'
+                            '导入后会自动在下载池中获取详情和头像。\n\n'
+                            '合并模式：保留已有角色，仅添加新角色（同名同日期自动去重）。\n'
                             '替换模式：删除当前所有数据并用导入数据替换。',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,

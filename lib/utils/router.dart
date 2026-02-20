@@ -6,6 +6,7 @@ import '../screens/main_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/birthday_page/birthday_tab.dart';
 import '../screens/birthday_page/character_tab.dart';
+import '../screens/birthday_tab/task_pool_tab.dart';
 import '../screens/birthday_page/birthday_grid_screen.dart';
 import '../screens/birthday_page/birthday_detail_screen.dart';
 import '../screens/char_page/character_detail_screen.dart';
@@ -51,6 +52,10 @@ final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: AppRoutes.birthTab,
   redirect: _redirectLogic,
+  onException: (context, state, router) {
+    // 路由未匹配时（例如 content:// URI 被当作路由传入），跳转到主页
+    router.go(AppRoutes.birthTab);
+  },
   routes: [
     GoRoute(
       path: AppRoutes.onboarding,
@@ -179,6 +184,14 @@ final router = GoRouter(
                   },
                 ),
               ],
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: AppRoutes.taskPoolTab,
+              builder: (context, state) => const TaskPoolTab(),
             ),
           ],
         ),

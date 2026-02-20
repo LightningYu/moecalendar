@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../config/design_constants.dart';
-import '../services/image_download_service.dart';
+import '../services/task_pool_service.dart';
 import 'name_avatar_widget.dart';
 
 /// 通用角色头像组件
@@ -52,15 +52,15 @@ class CharacterAvatarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final downloadService = ImageDownloadService();
+    final taskPool = TaskPoolService();
     final task = (isBangumi && characterId != null)
-        ? downloadService.getTask(characterId!)
+        ? taskPool.getTaskByCharacterId(characterId!)
         : null;
     final isDownloading =
         task != null &&
-        (task.status == DownloadStatus.downloading ||
-            task.status == DownloadStatus.pending);
-    final isFailed = task != null && task.status == DownloadStatus.failed;
+        (task.status == TaskStatus.running ||
+            task.status == TaskStatus.pending);
+    final isFailed = task != null && task.status == TaskStatus.failed;
 
     final hasLocalImage = _isLocalFile(imagePath);
     final hasNetworkImage = imagePath != null && imagePath!.startsWith('http');

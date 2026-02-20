@@ -9,7 +9,7 @@ import '../../models/character_model.dart';
 import '../../config/routes/app_routes.dart';
 import '../../utils/zodiac_utils.dart';
 import '../../widgets/name_avatar_widget.dart';
-import '../../services/image_download_service.dart';
+import '../../services/task_pool_service.dart';
 
 enum SortType { grouped, date }
 
@@ -53,9 +53,9 @@ class _CharacterTabState extends State<CharacterTab> {
 
   /// 为 BangumiCharacter 解析列表头像：优先下载缓存本地路径 → 模型字段 → 网络 URL
   ImageProvider? _resolveBangumiListAvatar(BangumiCharacter character) {
-    final imageService = ImageDownloadService();
+    final taskPool = TaskPoolService();
     // 优先使用下载缓存的本地路径（grid 优先）
-    final cachedPath = imageService.getCachedListAvatar(character.id);
+    final cachedPath = taskPool.getCachedListAvatar(character.id);
     if (cachedPath != null) {
       return FileImage(File(cachedPath));
     }
