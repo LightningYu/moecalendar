@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/character_provider.dart';
 import '../../models/character_model.dart';
 import '../../config/routes/app_routes.dart';
+import '../../config/design_constants.dart';
 import '../../utils/zodiac_utils.dart';
 import 'self_birthday_card.dart';
 
@@ -43,12 +44,21 @@ class _BirthdayTabState extends State<BirthdayTab> {
   }
 
   void _jumpToTargetCharacter() {
-    if (widget.targetCharacter == null || _pageController == null) return;
+    if (widget.targetCharacter == null ||
+        _pageController == null ||
+        _currentPages.isEmpty)
+      return;
 
-    for (int i = 0; i < _currentPages.length; i++) {
+    final pageCount = _currentPages.length;
+    for (int i = 0; i < pageCount; i++) {
       if (_currentPages[i].any((c) => c.id == widget.targetCharacter!.id)) {
+        final currentAbsolutePage =
+            _pageController!.page?.round() ?? _pageController!.initialPage;
+        final currentModulo = currentAbsolutePage % pageCount;
+        final difference = i - currentModulo;
+
         _pageController!.animateToPage(
-          i,
+          currentAbsolutePage + difference,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
@@ -67,7 +77,7 @@ class _BirthdayTabState extends State<BirthdayTab> {
   List<List<Character>> _groupCharacters(List<Character> characters) {
     List<List<Character>> pages = [];
 
-    // 1. Self
+    // 1. Self - 放到第一页
     final self = characters.where((c) => c.isSelf).toList();
     if (self.isNotEmpty) {
       pages.add(self);
@@ -80,7 +90,7 @@ class _BirthdayTabState extends State<BirthdayTab> {
       for (var c in others) {
         final nextBirthday = ZodiacUtils.getNextBirthday(c);
         final key =
-            '${nextBirthday.year}-${nextBirthday.month}-${nextBirthday.day}';
+            '${nextBirthday.year}-${nextBirthday.month.toString().padLeft(2, '0')}-${nextBirthday.day.toString().padLeft(2, '0')}';
         if (!groups.containsKey(key)) {
           groups[key] = [];
         }
@@ -96,48 +106,55 @@ class _BirthdayTabState extends State<BirthdayTab> {
 
     return pages;
   }
-// 以下未经过测试,意义不大的代码,作用是检查是否有即将到来的生日,并显示通知,我不太喜欢这个功能,哪天删掉,但不是今天
+
   void _checkNotifications() {
-    if (!mounted) return;
+    if (!mounted || _currentPages.isEmpty) return;
     final provider = Provider.of<CharacterProvider>(context, listen: false);
     final pages = _groupCharacters(provider.characters);
+    final pageCount = pages.length;
 
     final now = DateTime.now();
 
-    for (int i = 0; i < pages.length; i++) {
+    for (int i = 0; i < pageCount; i++) {
       final group = pages[i];
       if (group.first.isSelf) continue;
 
       final nextBirthday = ZodiacUtils.getNextBirthday(group.first);
       final diff = nextBirthday.difference(now).inSeconds;
 
-      // T-30s
+      // 距离生日30秒提醒一次
       if (diff == 30) {
-        _showNotification(group, i);
+        _showNotification(group, i, pageCount);
       }
 
-      // T-16s
+      // 距离生日16秒时，如果在该页则自动跳转动画页，否则再提醒一次
       if (diff == 16) {
         if (_currentPageIndex == i) {
           context.push(AppRoutes.congratulateCharacter, extra: group);
         } else {
-          _showNotification(group, i);
+          _showNotification(group, i, pageCount);
         }
       }
     }
   }
 
-  void _showNotification(List<Character> group, int pageIndex) {
+  void _showNotification(List<Character> group, int pageIndex, int pageCount) {
     final names = group.map((c) => c.name).join(', ');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('等待 $names 生日！点击跳转'),
-        duration: const Duration(seconds: 5),
+        content: Text('即将迎来 $names 的生日！'),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         action: SnackBarAction(
-          label: '跳转',
+          label: '查看',
           onPressed: () {
+            final currentAbsolutePage = _pageController?.page?.round() ?? 0;
+            final currentModulo = currentAbsolutePage % pageCount;
+            // 计算跳转到目标 modulo 索引的最短路径
+            int difference = pageIndex - currentModulo;
+
             _pageController?.animateToPage(
-              pageIndex,
+              currentAbsolutePage + difference,
               duration: const Duration(milliseconds: 500),
               curve: Curves.easeInOut,
             );
@@ -154,91 +171,139 @@ class _BirthdayTabState extends State<BirthdayTab> {
         final characters = provider.characters;
         if (characters.isEmpty) {
           return Scaffold(
-            appBar: AppBar(title: const Text('生日详情')),
-            body: const Center(child: Text('还没有添加人物哦，去右侧添加吧')),
+            appBar: AppBar(title: const Text('生日展望')),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.cake_outlined,
+                    size: 80,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withOpacity(0.2),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('还没有添加人物哦，去右侧添加吧'),
+                ],
+              ),
+            ),
           );
         }
 
         final pages = _groupCharacters(characters);
-
-        // 检查是否有今天生日的人物显示红点
-        bool hasBirthdayToday = false;
-        for (var c in characters) {
-          if (ZodiacUtils.isBirthdayToday(
-            c.birthMonth,
-            c.birthDay,
-            c.isLunar,
-          )) {
-            hasBirthdayToday = true;
-            break;
-          }
-        }
-
-        // 保存当前页面数据
         _currentPages = pages;
+        final pageCount = pages.length;
 
-        // Initialize controller (只初始化一次)
+        bool hasBirthdayToday = characters.any(
+          (c) =>
+              ZodiacUtils.isBirthdayToday(c.birthMonth, c.birthDay, c.isLunar),
+        );
+
         if (_pageController == null) {
-          int initialPage = 0;
-          // 如果有目标角色,定位到该角色所在页面
+          int initialOffset = 0;
           if (widget.targetCharacter != null) {
-            for (int i = 0; i < pages.length; i++) {
+            for (int i = 0; i < pageCount; i++) {
               if (pages[i].any((c) => c.id == widget.targetCharacter!.id)) {
-                initialPage = i;
+                initialOffset = i;
                 break;
               }
             }
           }
-          _pageController = PageController(initialPage: initialPage);
-          _currentPageIndex = initialPage;
+          // 为了实现首末相连，我们设置一个很大的初始页码
+          const int initialBatch = 500;
+          _pageController = PageController(
+            initialPage: (initialBatch * pageCount) + initialOffset,
+          );
+          _currentPageIndex = initialOffset;
         }
+
+        final colorScheme = Theme.of(context).colorScheme;
 
         return Scaffold(
           appBar: AppBar(
+            elevation: 0,
+            scrolledUnderElevation: 0,
             leading: Stack(
+              alignment: Alignment.center,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.grid_view),
+                  icon: const Icon(Icons.grid_view_rounded),
                   onPressed: () => context.push(AppRoutes.birthGridPath),
                 ),
                 if (hasBirthdayToday)
                   Positioned(
-                    right: 8,
-                    top: 8,
+                    right: 12,
+                    top: 12,
                     child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: colorScheme.error,
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: colorScheme.surface,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
               ],
             ),
-            title: const Text('生日详情'),
+            title: const Text(
+              '生日展望',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.settings),
+                icon: const Icon(Icons.settings_outlined),
                 onPressed: () => context.push(AppRoutes.settings),
               ),
+              const SizedBox(width: 8),
             ],
           ),
-          body: PageView.builder(
-            controller: _pageController,
-            itemCount: pages.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentPageIndex = index;
-              });
-            },
-            itemBuilder: (context, index) {
-              final group = pages[index];
-              if (group.first.isSelf) {
-                return SelfBirthdayCard(character: group.first);
-              }
-              return BirthdayCountdownPage(characters: group);
-            },
+          body: Column(
+            children: [
+              // Page Indicator
+              if (pageCount > 1)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(pageCount, (index) {
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        height: 6,
+                        width: _currentPageIndex == index ? 20 : 6,
+                        decoration: BoxDecoration(
+                          color: _currentPageIndex == index
+                              ? colorScheme.primary
+                              : colorScheme.primary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentPageIndex = index % pageCount;
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    final group = pages[index % pageCount];
+                    if (group.first.isSelf) {
+                      return SelfBirthdayCard(character: group.first);
+                    }
+                    return BirthdayCountdownPage(characters: group);
+                  },
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -263,7 +328,7 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
     super.initState();
     _calculateTimeLeft();
     _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      _calculateTimeLeft();
+      if (mounted) _calculateTimeLeft();
     });
   }
 
@@ -284,83 +349,239 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
 
   @override
   Widget build(BuildContext context) {
-    final days = _timeLeft.inDays;
-    final hours = _timeLeft.inHours % 24;
-    final minutes = _timeLeft.inMinutes % 60;
-    final seconds = _timeLeft.inSeconds % 60;
-    final milliseconds = _timeLeft.inMilliseconds % 1000;
-
+    final colorScheme = Theme.of(context).colorScheme;
     final isToday = ZodiacUtils.isBirthdayToday(
       widget.characters.first.birthMonth,
       widget.characters.first.birthDay,
       widget.characters.first.isLunar,
     );
 
-    return Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          ...widget.characters.map(
-            (c) => Column(
+          // 角色姓名组 - 更加显眼
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.center,
+            children: widget.characters.map((c) {
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: colorScheme.primary.withOpacity(0.1),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.star,
+                      size: 16,
+                      color: Colors.orangeAccent,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      c.name,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 32),
+
+          // 核心展示卡片 - 调整为全宽且内容更紧凑防止溢出
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colorScheme.surfaceVariant.withOpacity(0.5),
+                  colorScheme.surfaceVariant.withOpacity(0.2),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(DesignConstants.radiusXl),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withOpacity(0.3),
+              ),
+            ),
+            child: Column(
               children: [
-                Text(c.name, style: Theme.of(context).textTheme.headlineMedium),
-                const SizedBox(height: 10),
+                if (isToday) ...[
+                  const Icon(
+                    Icons.cake_rounded,
+                    size: 100,
+                    color: Colors.pinkAccent,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'HAPPY BIRTHDAY!',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.pink,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        context.push(
+                          AppRoutes.congratulateCharacter,
+                          extra: widget.characters,
+                        );
+                      },
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        backgroundColor: Colors.pinkAccent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: const Icon(Icons.auto_awesome),
+                      label: const Text(
+                        '立即发送周年祝福',
+                        style: TextStyle(fontSize: 18),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Text(
+                    'BIRTHDAY COUNTDOWN',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 4,
+                      color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  _buildCountdownTimer(context),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          if (isToday) ...[
-            const Text(
-              '今天是生日！',
-              style: TextStyle(fontSize: 24, color: Colors.pink),
+
+          const SizedBox(height: 48),
+          Icon(
+            Icons.favorite,
+            color: Colors.pinkAccent.withOpacity(0.3),
+            size: 24,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '每一个生日都值得被温柔以待',
+            style: TextStyle(
+              fontSize: 14,
+              color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+              fontStyle: FontStyle.italic,
+              letterSpacing: 1,
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                context.push(
-                  AppRoutes.congratulateCharacter,
-                  extra: widget.characters,
-                );
-              },
-              child: const Text('发送祝福'),
-            ),
-          ] else ...[
-            const Text('距离生日还有', style: TextStyle(fontSize: 20)),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                _buildTimeItem(days, '天'),
-                _buildTimeItem(hours, '时'),
-                _buildTimeItem(minutes, '分'),
-                _buildTimeItem(seconds, '秒'),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '.$milliseconds',
-              style: const TextStyle(fontSize: 30, color: Colors.grey),
-            ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTimeItem(int value, String unit) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: Column(
-        children: [
-          Text(
-            value.toString().padLeft(2, '0'),
-            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+  Widget _buildCountdownTimer(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final days = _timeLeft.inDays;
+    final hours = _timeLeft.inHours % 24;
+    final minutes = _timeLeft.inMinutes % 60;
+    final seconds = _timeLeft.inSeconds % 60;
+    final milliseconds = _timeLeft.inMilliseconds % 1000;
+
+    return Column(
+      children: [
+        // 使用 Wrap 替代 Row 解决溢出问题，并增加间距
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 16,
+          children: [
+            _buildTimeBox(context, days.toString().padLeft(2, '0'), 'DAYS'),
+            _buildTimeBox(context, hours.toString().padLeft(2, '0'), 'HOURS'),
+            _buildTimeBox(context, minutes.toString().padLeft(2, '0'), 'MINS'),
+            _buildTimeBox(context, seconds.toString().padLeft(2, '0'), 'SECS'),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
           ),
-          Text(unit, style: const TextStyle(fontSize: 16)),
-        ],
-      ),
+          child: Text(
+            '.${milliseconds.toString().padLeft(3, '0')}',
+            style: TextStyle(
+              fontSize: 20,
+              fontFamily: 'monospace',
+              color: colorScheme.primary.withOpacity(0.6),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimeBox(BuildContext context, String value, String label) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Container(
+          width: 70, // 固定宽度保证整齐
+          height: 70,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.primary.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'monospace',
+              color: colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

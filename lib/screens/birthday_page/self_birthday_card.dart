@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/character_model.dart';
 import '../../config/routes/app_routes.dart';
 import '../../config/design_constants.dart';
+import '../../utils/zodiac_utils.dart';
 
 class SelfBirthdayCard extends StatefulWidget {
   final Character character;
@@ -16,6 +17,7 @@ class SelfBirthdayCard extends StatefulWidget {
 class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
   late Timer _timer;
   double _preciseAge = 0.0;
+  bool _isBirthday = false;
 
   int _totalYears = 0;
   int _totalMonths = 0;
@@ -39,6 +41,13 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
     if (widget.character.birthYear == null) return;
 
     final now = DateTime.now();
+    // 检查今天是否是生日
+    final isBirthdayToday = ZodiacUtils.isBirthdayToday(
+      widget.character.birthMonth,
+      widget.character.birthDay,
+      widget.character.isLunar,
+    );
+
     final birthDate = DateTime(
       widget.character.birthYear!,
       widget.character.birthMonth,
@@ -55,6 +64,7 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
     final totalSecondsLived = duration.inSeconds;
 
     setState(() {
+      _isBirthday = isBirthdayToday;
       // 通过毫秒数使得岁数更新更连续 平滑
       _preciseAge =
           age + (duration.inMilliseconds % 86400000) / 86400000 / daysPerYear;
@@ -156,9 +166,20 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
               onPressed: () {
                 context.push(AppRoutes.congratulate, extra: widget.character);
               },
-              icon: const Icon(Icons.auto_stories_outlined),
-              label: const Text('查看人生日志', style: TextStyle(fontSize: 16)),
+              icon: Icon(
+                _isBirthday ? Icons.celebration : Icons.auto_stories_outlined,
+              ),
+              label: Text(
+                _isBirthday ? '领取生日惊喜' : '查看人生日志',
+                style: const TextStyle(fontSize: 16),
+              ),
               style: FilledButton.styleFrom(
+                backgroundColor: _isBirthday
+                    ? colorScheme.errorContainer
+                    : colorScheme.primary,
+                foregroundColor: _isBirthday
+                    ? colorScheme.onErrorContainer
+                    : colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(DesignConstants.radiusLg),

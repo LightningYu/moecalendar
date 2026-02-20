@@ -15,8 +15,8 @@ class CongratulationScreen extends StatefulWidget {
 
 class _CongratulationScreenState extends State<CongratulationScreen>
     with TickerProviderStateMixin {
-  late AnimationController _starController;
-  final List<Particle> _particles = [];
+  late AnimationController _celebrationController;
+  final List<ConfettiItem> _particles = [];
   final Random _random = Random();
 
   // Age Logic
@@ -36,39 +36,58 @@ class _CongratulationScreenState extends State<CongratulationScreen>
   @override
   void initState() {
     super.initState();
-    _starController = AnimationController(
+    _celebrationController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 16),
     )..repeat();
 
     _danmakuController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 20), // Loop duration, not item speed
+      duration: const Duration(seconds: 20),
     )..repeat();
 
-    // Initialize particles
-    for (int i = 0; i < 50; i++) {
-      _particles.add(_generateParticle());
+    // Initialize confetti particles
+    for (int i = 0; i < 60; i++) {
+      _particles.add(_generateConfetti());
     }
 
-    _starController.addListener(() {
+    _celebrationController.addListener(() {
       if (!mounted) return;
       setState(() {
         _updateParticles();
+        if (_isBirthday) {
+          _updateDanmaku();
+        }
       });
-    });
-
-    _danmakuController.addListener(() {
-      if (!mounted) return;
-      if (_isBirthday) {
-        _updateDanmaku();
-      }
     });
 
     _updateTime();
     _timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       _updateTime();
     });
+  }
+
+  ConfettiItem _generateConfetti() {
+    return ConfettiItem(
+      x: _random.nextDouble(),
+      y: _random.nextDouble() * 1.5 - 0.5,
+      speedY: 0.002 + _random.nextDouble() * 0.004,
+      speedX: -0.001 + _random.nextDouble() * 0.002,
+      rotation: _random.nextDouble() * pi * 2,
+      rotationSpeed: -0.1 + _random.nextDouble() * 0.2,
+      color: [
+        Colors.redAccent,
+        Colors.orangeAccent,
+        Colors.yellowAccent,
+        Colors.greenAccent,
+        Colors.blueAccent,
+        Colors.pinkAccent,
+        Colors.purpleAccent,
+        const Color(0xFFFFD700),
+      ][_random.nextInt(8)],
+      width: 6 + _random.nextDouble() * 8,
+      height: 4 + _random.nextDouble() * 6,
+    );
   }
 
   void _updateTime() {
@@ -104,15 +123,10 @@ class _CongratulationScreenState extends State<CongratulationScreen>
 
   void _triggerCelebration() async {
     _celebrationTriggered = true;
-
-    // Fade out normal text
     setState(() {
       _showNormalText = false;
     });
-
     await Future.delayed(const Duration(seconds: 1));
-
-    // Fade in celebration text
     if (mounted) {
       setState(() {
         _showCelebrationText = true;
@@ -121,74 +135,55 @@ class _CongratulationScreenState extends State<CongratulationScreen>
   }
 
   void _updateParticles() {
-    for (var particle in _particles) {
-      particle.y -= particle.speed;
-      particle.opacity += particle.twinkleSpeed;
-      if (particle.opacity >= 1.0) {
-        particle.opacity = 1.0;
-        particle.twinkleSpeed = -particle.twinkleSpeed;
-      } else if (particle.opacity <= 0.2) {
-        particle.opacity = 0.2;
-        particle.twinkleSpeed = -particle.twinkleSpeed;
-      }
-      if (particle.y < 0) {
-        _resetParticle(particle);
+    for (var p in _particles) {
+      p.y += p.speedY;
+      p.x += p.speedX;
+      p.rotation += p.rotationSpeed;
+      if (p.y > 1.1) {
+        p.y = -0.1;
+        p.x = _random.nextDouble();
       }
     }
   }
 
   void _updateDanmaku() {
-    // Spawn new danmaku randomly
-    if (_random.nextInt(100) < 2) {
-      // 2% chance per frame
+    // 降低密度并大幅提高透明度以避免遮挡
+    if (_random.nextInt(100) < 8) {
       final greetings = AppStrings.birthdayGreetings;
+      // 避开 0.4 - 0.6 的垂直区域 (文字聚集区)
+      double itemY = _random.nextDouble();
+      if (itemY > 0.4 && itemY < 0.6) {
+        itemY = itemY < 0.5 ? 0.3 : 0.7;
+      }
+
       _danmakuList.add(
         DanmakuItem(
           text: greetings[_random.nextInt(greetings.length)],
-          x: 1.2, // Start off-screen right (relative to width)
-          y: 0.1 + _random.nextDouble() * 0.8, // Random height
-          speed: 0.002 + _random.nextDouble() * 0.003,
-          color: Colors.primaries[_random.nextInt(Colors.primaries.length)],
+          x: 1.2,
+          y: 0.05 + itemY * 0.9,
+          speed: 0.003 + _random.nextDouble() * 0.005,
+          opacity: 0.3 + _random.nextDouble() * 0.3, // 降低透明度
+          color: [
+            Colors.white,
+            Colors.pink.shade100,
+            Colors.yellow.shade100,
+            Colors.cyan.shade100,
+            const Color(0xFFFFD700),
+          ][_random.nextInt(5)],
           fontSize: 20 + _random.nextDouble() * 20,
         ),
       );
     }
 
-    // Move existing danmaku
     for (var item in _danmakuList) {
       item.x -= item.speed;
     }
-
-    // Remove off-screen danmaku
-    _danmakuList.removeWhere((item) => item.x < -1);
-  }
-
-  Particle _generateParticle() {
-    return Particle(
-      x: _random.nextDouble(),
-      y: _random.nextDouble(), // Start anywhere
-      speed: 0.0002 + _random.nextDouble() * 0.0005, // Very slow drift
-      color: Colors.white,
-      size: 1 + _random.nextDouble() * 3, // Small stars
-      opacity: 0.2 + _random.nextDouble() * 0.8,
-      twinkleSpeed:
-          (_random.nextBool() ? 1 : -1) * (0.005 + _random.nextDouble() * 0.01),
-    );
-  }
-
-  void _resetParticle(Particle p) {
-    p.x = _random.nextDouble();
-    p.y = 1.0 + _random.nextDouble() * 0.1; // Start at bottom
-    p.speed = 0.0002 + _random.nextDouble() * 0.0005;
-    p.opacity = 0.2 + _random.nextDouble() * 0.8;
-    p.size = 1 + _random.nextDouble() * 3;
-    p.twinkleSpeed =
-        (_random.nextBool() ? 1 : -1) * (0.005 + _random.nextDouble() * 0.01);
+    _danmakuList.removeWhere((item) => item.x < -0.8);
   }
 
   @override
   void dispose() {
-    _starController.dispose();
+    _celebrationController.dispose();
     _danmakuController.dispose();
     _timer.cancel();
     super.dispose();
@@ -205,21 +200,21 @@ class _CongratulationScreenState extends State<CongratulationScreen>
     return Scaffold(
       body: Stack(
         children: [
-          // Background
+          // Background - Festive Red/Pink Gradient
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF0B1026), Color(0xFF2B32B2)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFCC2B5E), Color(0xFF753A88)],
                 ),
               ),
             ),
           ),
-          // Stars
+          // Confetti
           Positioned.fill(
-            child: CustomPaint(painter: StarrySkyPainter(_particles)),
+            child: CustomPaint(painter: ConfettiPainter(_particles)),
           ),
           // Danmaku Layer
           if (_isBirthday)
@@ -231,42 +226,46 @@ class _CongratulationScreenState extends State<CongratulationScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // State 1: Not Birthday (or before animation trigger)
-                AnimatedOpacity(
-                  opacity: _showNormalText ? 1.0 : 0.0,
-                  duration: const Duration(seconds: 1),
-                  child: _showNormalText
-                      ? Column(
-                          children: [
-                            const Text(
-                              '已经',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 24,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            Text(
-                              _preciseAge.toStringAsFixed(9),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 40,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            const Text(
-                              '岁了',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 24,
-                              ),
-                            ),
-                          ],
-                        )
-                      : const SizedBox.shrink(),
-                ),
+                // State 1: Not Birthday
+                if (_showNormalText)
+                  AnimatedOpacity(
+                    opacity: _showNormalText ? 1.0 : 0.0,
+                    duration: const Duration(seconds: 1),
+                    child: Column(
+                      children: [
+                        const Text(
+                          '你已经',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 24,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          _preciseAge.toStringAsFixed(9),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 44,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                            shadows: [
+                              Shadow(blurRadius: 10, color: Colors.black26),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          '岁了',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 24,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                 // State 2: Birthday Celebration
                 if (_celebrationTriggered)
@@ -278,33 +277,37 @@ class _CongratulationScreenState extends State<CongratulationScreen>
                         const Text(
                           '生日快乐',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 48,
+                            color: Color(0xFFFFD700),
+                            fontSize: 60,
                             fontWeight: FontWeight.bold,
+                            letterSpacing: 4,
                             shadows: [
                               Shadow(
-                                blurRadius: 20.0,
-                                color: Colors.pink,
-                                offset: Offset(0, 0),
+                                blurRadius: 20,
+                                color: Colors.orangeAccent,
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 30),
                         Text(
                           '$integerAge 岁',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 36,
+                            fontSize: 40,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 20),
                         Text(
-                          '$zodiac 的你',
+                          '尊贵的 $zodiac 守护者',
                           style: const TextStyle(
-                            color: Colors.white70,
+                            color: Colors.white, // 提高对比度
                             fontSize: 24,
+                            fontWeight: FontWeight.w500,
+                            shadows: [
+                              Shadow(blurRadius: 8, color: Colors.black26),
+                            ],
                           ),
                         ),
                       ],
@@ -317,9 +320,15 @@ class _CongratulationScreenState extends State<CongratulationScreen>
           Positioned(
             top: 40,
             left: 10,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white24,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
             ),
           ),
         ],
@@ -328,42 +337,39 @@ class _CongratulationScreenState extends State<CongratulationScreen>
   }
 }
 
-class Particle {
-  double x;
-  double y;
-  double speed;
+class ConfettiItem {
+  double x, y, speedY, speedX, rotation, rotationSpeed, width, height;
   Color color;
-  double size;
-  double opacity;
-  double twinkleSpeed; // New property for twinkling
-
-  Particle({
+  ConfettiItem({
     required this.x,
     required this.y,
-    required this.speed,
+    required this.speedY,
+    required this.speedX,
+    required this.rotation,
+    required this.rotationSpeed,
     required this.color,
-    required this.size,
-    required this.opacity,
-    required this.twinkleSpeed,
+    required this.width,
+    required this.height,
   });
 }
 
-class StarrySkyPainter extends CustomPainter {
-  final List<Particle> particles;
-
-  StarrySkyPainter(this.particles);
+class ConfettiPainter extends CustomPainter {
+  final List<ConfettiItem> particles;
+  ConfettiPainter(this.particles);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final paint = Paint();
     for (var p in particles) {
-      final paint = Paint()
-        ..color = p.color.withOpacity(p.opacity)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(
-        Offset(p.x * size.width, p.y * size.height),
-        p.size,
+      paint.color = p.color;
+      canvas.save();
+      canvas.translate(p.x * size.width, p.y * size.height);
+      canvas.rotate(p.rotation);
+      canvas.drawRect(
+        Rect.fromCenter(center: Offset.zero, width: p.width, height: p.height),
         paint,
       );
+      canvas.restore();
     }
   }
 
@@ -373,9 +379,10 @@ class StarrySkyPainter extends CustomPainter {
 
 class DanmakuItem {
   String text;
-  double x; // 0.0 to 1.0+
+  double x; // 0.0 to 1.2
   double y; // 0.0 to 1.0
   double speed;
+  double opacity;
   Color color;
   double fontSize;
 
@@ -384,6 +391,7 @@ class DanmakuItem {
     required this.x,
     required this.y,
     required this.speed,
+    required this.opacity,
     required this.color,
     required this.fontSize,
   });
@@ -400,11 +408,15 @@ class DanmakuPainter extends CustomPainter {
       final textSpan = TextSpan(
         text: item.text,
         style: TextStyle(
-          color: item.color,
+          color: item.color.withOpacity(item.opacity),
           fontSize: item.fontSize,
           fontWeight: FontWeight.bold,
-          shadows: const [
-            Shadow(blurRadius: 2, color: Colors.black, offset: Offset(1, 1)),
+          shadows: [
+            Shadow(
+              blurRadius: 3,
+              color: Colors.black.withOpacity(0.3),
+              offset: const Offset(1, 1),
+            ),
           ],
         ),
       );

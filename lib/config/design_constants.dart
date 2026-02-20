@@ -106,4 +106,7 @@ class DesignConstants {
 
   /// 列表底部留白（避免被 FAB 遮挡）
   static const double listBottomPadding = 100.0;
+
+  /// 超大圆角
+  static const double radiusXl = 24.0;
 }
