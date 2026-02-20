@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../bangumi/bangumi.dart';
+import '../../config/routes/app_routes.dart';
 import '../../providers/character_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/bangumi_character_list_item.dart';
+import '../../widgets/bangumi_subject_list_item.dart';
 import '../char_page/bangumi_anime_list_screen.dart';
 import '../char_page/bangumi_character_list_screen.dart';
 import '../char_page/character_detail_screen.dart';
+import '../char_page/subject_detail_screen.dart';
 
 class AddBangumiCharacterScreen extends StatefulWidget {
   const AddBangumiCharacterScreen({super.key});
@@ -19,6 +23,8 @@ class AddBangumiCharacterScreen extends StatefulWidget {
 
 enum _AddBangumiView { search, collections }
 
+enum _SearchType { character, subject }
+
 class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
   final TextEditingController _searchController = TextEditingController();
   final BangumiService _bangumiService = BangumiService();
@@ -26,6 +32,7 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
 
   // Search State
   List<BangumiCharacterDto> _searchResults = [];
+  List<BangumiSubjectDto> _subjectResults = [];
   bool _isSearching = false;
   bool _isLoadingSearch = false;
   bool _hasMoreSearch = true;
@@ -33,8 +40,8 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
   int _searchTotal = 0;
   static const int _limit = 20;
   String _currentKeyword = '';
-  bool _isAdding = false;
   _AddBangumiView _activeView = _AddBangumiView.search;
+  _SearchType _searchType = _SearchType.character;
 
   // 多选模式
   bool _isSelectionMode = false;
@@ -82,27 +89,42 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
     setState(() {
       _isLoadingSearch = true;
       _searchResults = [];
+      _subjectResults = [];
       _searchOffset = 0;
       _searchTotal = 0;
       _hasMoreSearch = true;
       _currentKeyword = _searchController.text;
     });
 
-    final response = await _bangumiService.searchCharacters(
-      _currentKeyword,
-      limit: _limit,
-      offset: _searchOffset,
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _searchResults = response.data;
-      _searchTotal = response.total;
-      _isLoadingSearch = false;
-      _searchOffset += response.data.length;
-      _hasMoreSearch = _searchOffset < _searchTotal;
-    });
+    if (_searchType == _SearchType.character) {
+      final response = await _bangumiService.searchCharacters(
+        _currentKeyword,
+        limit: _limit,
+        offset: _searchOffset,
+      );
+      if (!mounted) return;
+      setState(() {
+        _searchResults = response.data;
+        _searchTotal = response.total;
+        _isLoadingSearch = false;
+        _searchOffset += response.data.length;
+        _hasMoreSearch = _searchOffset < _searchTotal;
+      });
+    } else {
+      final response = await _bangumiService.searchSubjects(
+        _currentKeyword,
+        limit: _limit,
+        offset: _searchOffset,
+      );
+      if (!mounted) return;
+      setState(() {
+        _subjectResults = response.data;
+        _searchTotal = response.total;
+        _isLoadingSearch = false;
+        _searchOffset += response.data.length;
+        _hasMoreSearch = _searchOffset < _searchTotal;
+      });
+    }
   }
 
   Future<void> _loadMoreSearch() async {
@@ -110,31 +132,40 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
       _isLoadingSearch = true;
     });
 
-    final response = await _bangumiService.searchCharacters(
-      _currentKeyword,
-      limit: _limit,
-      offset: _searchOffset,
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _searchResults.addAll(response.data);
-      _isLoadingSearch = false;
-      _searchOffset += response.data.length;
-      _hasMoreSearch = _searchOffset < _searchTotal;
-    });
+    if (_searchType == _SearchType.character) {
+      final response = await _bangumiService.searchCharacters(
+        _currentKeyword,
+        limit: _limit,
+        offset: _searchOffset,
+      );
+      if (!mounted) return;
+      setState(() {
+        _searchResults.addAll(response.data);
+        _isLoadingSearch = false;
+        _searchOffset += response.data.length;
+        _hasMoreSearch = _searchOffset < _searchTotal;
+      });
+    } else {
+      final response = await _bangumiService.searchSubjects(
+        _currentKeyword,
+        limit: _limit,
+        offset: _searchOffset,
+      );
+      if (!mounted) return;
+      setState(() {
+        _subjectResults.addAll(response.data);
+        _isLoadingSearch = false;
+        _searchOffset += response.data.length;
+        _hasMoreSearch = _searchOffset < _searchTotal;
+      });
+    }
   }
 
   // --- Add ---
 
-  // 批量添加选中的角色
-  Future<void> _addSelectedCharacters() async {
+  // 批量添加选中的角色（非阻塞，立即返回）
+  void _addSelectedCharacters() {
     if (_selectedIds.isEmpty) return;
-
-    setState(() {
-      _isAdding = true;
-    });
 
     final provider = Provider.of<CharacterProvider>(context, listen: false);
 
@@ -142,24 +173,20 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
         .where((c) => _selectedIds.contains(c.id))
         .toList();
 
-    final (addedCount, skippedCount) = await provider.addBangumiCharacters(
-      selectedList,
-    );
+    final count = selectedList.length;
+
+    // 非阻塞：后台异步获取详情并入库
+    provider.addBangumiCharactersAsync(selectedList);
 
     setState(() {
-      _isAdding = false;
       _selectedIds.clear();
       _isSelectionMode = false;
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '已添加 $addedCount 个角色，跳过 $skippedCount 个（无生日信息）\n图片将在后台下载',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已创建 $count 个添加任务，将在后台处理')));
     }
   }
 
@@ -193,8 +220,12 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
   // --- UI Components ---
 
   Widget _buildSearchList() {
-    if (_isLoadingSearch && _searchResults.isEmpty) {
+    if (_isLoadingSearch && _searchResults.isEmpty && _subjectResults.isEmpty) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_searchType == _SearchType.subject) {
+      return _buildSubjectSearchList();
     }
 
     if (_searchResults.isEmpty) {
@@ -240,13 +271,54 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
     );
   }
 
+  Widget _buildSubjectSearchList() {
+    if (_subjectResults.isEmpty) {
+      return _buildEmptySearchState();
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.only(bottom: 100),
+      itemCount: _subjectResults.length + (_hasMoreSearch ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == _subjectResults.length) {
+          return const Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final subject = _subjectResults[index];
+        return BangumiSubjectListItem(
+          subject: subject,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SubjectDetailScreen(
+                  subjectId: subject.id,
+                  subjectName: subject.displayName,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildEmptySearchState() {
     final theme = Theme.of(context);
     final isInitial = _currentKeyword.isEmpty;
-    final title = isInitial ? '搜索 Bangumi 角色' : '没有匹配的角色';
+    final isCharacter = _searchType == _SearchType.character;
+    final title = isInitial
+        ? (isCharacter ? '搜索 Bangumi 角色' : '搜索 Bangumi 番剧')
+        : (isCharacter ? '没有匹配的角色' : '没有匹配的番剧');
     final subtitle = isInitial
-        ? '支持角色名、中文别名或作品名关键字\n长按可进入多选模式批量添加'
-        : '可以尝试更换关键字，或切换到收藏标签';
+        ? (isCharacter
+              ? '支持角色名、中文别名或作品名关键字\n长按可进入多选模式批量添加'
+              : '输入番剧名称搜索，点击条目可查看并导入角色')
+        : '可以尝试更换关键字，或切换搜索类型';
 
     return Center(
       child: Padding(
@@ -255,7 +327,9 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              isInitial ? Icons.travel_explore : Icons.sentiment_dissatisfied,
+              isInitial
+                  ? (isCharacter ? Icons.travel_explore : Icons.movie_outlined)
+                  : Icons.sentiment_dissatisfied,
               size: 48,
               color: theme.colorScheme.primary,
             ),
@@ -279,14 +353,16 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: '搜索角色、中文名或作品名',
+                    hintText: _searchType == _SearchType.character
+                        ? '搜索角色、中文名或作品名'
+                        : '搜索番剧名称',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _isSearching
                         ? IconButton(
@@ -296,6 +372,7 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
                               FocusScope.of(context).unfocus();
                               setState(() {
                                 _searchResults = [];
+                                _subjectResults = [];
                                 _currentKeyword = '';
                               });
                             },
@@ -312,6 +389,44 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
                 child: const Text('搜索'),
               ),
             ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: SegmentedButton<_SearchType>(
+            showSelectedIcon: false,
+            style: ButtonStyle(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+            segments: const [
+              ButtonSegment<_SearchType>(
+                value: _SearchType.character,
+                label: Text('角色'),
+                icon: Icon(Icons.person_search),
+              ),
+              ButtonSegment<_SearchType>(
+                value: _SearchType.subject,
+                label: Text('番剧'),
+                icon: Icon(Icons.movie_outlined),
+              ),
+            ],
+            selected: <_SearchType>{_searchType},
+            onSelectionChanged: (selection) {
+              final next = selection.first;
+              if (next == _searchType) return;
+              setState(() {
+                _searchType = next;
+                _searchResults = [];
+                _subjectResults = [];
+                _currentKeyword = '';
+                _searchOffset = 0;
+                _searchTotal = 0;
+                _hasMoreSearch = true;
+                _searchController.clear();
+                _isSearching = false;
+              });
+            },
           ),
         ),
         Expanded(child: _buildSearchList()),
@@ -416,9 +531,7 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
             const SizedBox(height: 24),
             FilledButton(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('请前往设置页面登录 Bangumi')),
-                );
+                context.push(AppRoutes.settingsBangumiPath);
               },
               child: const Text('前往设置'),
             ),
@@ -474,45 +587,25 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
       ),
       floatingActionButton: _isSelectionMode && _selectedIds.isNotEmpty
           ? FloatingActionButton.extended(
-              onPressed: _isAdding ? null : _addSelectedCharacters,
-              icon: _isAdding
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.add),
-              label: Text(_isAdding ? '添加中...' : '添加 ${_selectedIds.length} 个'),
+              onPressed: _addSelectedCharacters,
+              icon: const Icon(Icons.add),
+              label: Text('添加 ${_selectedIds.length} 个'),
             )
           : null,
-      body: Stack(
+      body: Column(
         children: [
-          Column(
-            children: [
-              if (!_isSelectionMode) _buildViewSwitcher(),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: KeyedSubtree(
-                    key: ValueKey(_activeView),
-                    child: _activeView == _AddBangumiView.search
-                        ? _buildSearchBody()
-                        : _buildCollectionsBody(),
-                  ),
-                ),
+          if (!_isSelectionMode) _buildViewSwitcher(),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: KeyedSubtree(
+                key: ValueKey(_activeView),
+                child: _activeView == _AddBangumiView.search
+                    ? _buildSearchBody()
+                    : _buildCollectionsBody(),
               ),
-            ],
-          ),
-          if (_isAdding)
-            Container(
-              color: Theme.of(
-                context,
-              ).colorScheme.scrim.withValues(alpha: 0.45),
-              child: const Center(child: CircularProgressIndicator()),
             ),
+          ),
         ],
       ),
     );

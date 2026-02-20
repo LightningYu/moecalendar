@@ -25,7 +25,6 @@ class _BangumiCharacterListScreenState
   bool _hasMore = true;
   int _offset = 0;
   static const int _limit = 30;
-  bool _isAdding = false;
   bool _isSelectionMode = false;
 
   @override
@@ -120,33 +119,25 @@ class _BangumiCharacterListScreenState
   Future<void> _addSelectedCharacters() async {
     if (_selectedIds.isEmpty) return;
 
-    setState(() {
-      _isAdding = true;
-    });
-
     final provider = Provider.of<CharacterProvider>(context, listen: false);
 
     final selectedList = _characters
         .where((c) => _selectedIds.contains(c.id))
         .toList();
 
-    final (addedCount, skippedCount) = await provider.addBangumiCharacters(
-      selectedList,
-    );
+    final count = selectedList.length;
+
+    // 非阻塞：后台异步获取详情并入库
+    provider.addBangumiCharactersAsync(selectedList);
 
     setState(() {
-      _isAdding = false;
       _selectedIds.clear();
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '已添加 $addedCount 个角色，跳过 $skippedCount 个（无生日信息）\n图片将在后台下载',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已创建 $count 个添加任务，将在后台处理')));
     }
   }
 
@@ -177,70 +168,49 @@ class _BangumiCharacterListScreenState
       ),
       floatingActionButton: _isSelectionMode && _selectedIds.isNotEmpty
           ? FloatingActionButton.extended(
-              onPressed: _isAdding ? null : _addSelectedCharacters,
-              icon: _isAdding
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.add),
-              label: Text(_isAdding ? '添加中...' : '添加 ${_selectedIds.length} 个'),
+              onPressed: _addSelectedCharacters,
+              icon: const Icon(Icons.add),
+              label: Text('添加 ${_selectedIds.length} 个'),
             )
           : null,
-      body: Stack(
-        children: [
-          _characters.isEmpty && _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.only(top: 8, bottom: 100),
-                  itemCount: _characters.length + (_hasMore ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == _characters.length) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: CircularProgressIndicator(),
+      body: _characters.isEmpty && _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.only(top: 8, bottom: 100),
+              itemCount: _characters.length + (_hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == _characters.length) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+
+                final character = _characters[index];
+                final isSelected = _selectedIds.contains(character.id);
+
+                return BangumiCharacterListItem(
+                  character: character,
+                  isSelected: isSelected,
+                  isSelectionMode: _isSelectionMode,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CharacterDetailScreen.fromBangumi(
+                          bangumiDto: character,
                         ),
-                      );
-                    }
-
-                    final character = _characters[index];
-                    final isSelected = _selectedIds.contains(character.id);
-
-                    return BangumiCharacterListItem(
-                      character: character,
-                      isSelected: isSelected,
-                      isSelectionMode: _isSelectionMode,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                CharacterDetailScreen.fromBangumi(
-                                  bangumiDto: character,
-                                ),
-                          ),
-                        );
-                      },
-                      onLongPress: () => _enterSelectionMode(character.id),
-                      onCheckChanged: (val) => _toggleSelection(character.id),
+                      ),
                     );
                   },
-                ),
-          if (_isAdding)
-            Container(
-              color: Theme.of(
-                context,
-              ).colorScheme.scrim.withValues(alpha: 0.45),
-              child: const Center(child: CircularProgressIndicator()),
+                  onLongPress: () => _enterSelectionMode(character.id),
+                  onCheckChanged: (val) => _toggleSelection(character.id),
+                );
+              },
             ),
-        ],
-      ),
     );
   }
 }

@@ -9,9 +9,7 @@ import '../bangumi/bangumi.dart';
 
 class CharacterProvider extends ChangeNotifier {
   CharacterProvider() {
-    _loadData();
-    _imageService.onDownloadComplete = _onImageDownloaded;
-    _imageService.addListener(_onDownloadProgress);
+    _init();
   }
 
   final StorageService _storageService = StorageService();
@@ -41,6 +39,14 @@ class CharacterProvider extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> _init() async {
+    await _loadData();
+    _imageService.onImageReady = _onImageReady;
+    _imageService.addListener(_onDownloadProgress);
+    // 恢复之前未完成的下载任务
+    await _imageService.init();
   }
 
   /// 新增角色
@@ -99,62 +105,117 @@ class CharacterProvider extends ChangeNotifier {
     await _loadData();
   }
 
-  /// 批量添加 Bangumi 角色（先入库，后台下载图片）
+  /// 批量添加 Bangumi 角色（非阻塞）
   ///
-  /// 返回 (addedCount, skippedCount)
-  Future<(int, int)> addBangumiCharacters(
+  /// 立即用搜索结果中已有的信息创建占位角色（含名称和图片 URL），
+  /// 然后在后台并发拉取详情以补全生日等信息。
+  void addBangumiCharactersAsync(List<BangumiCharacterDto> dtoList) {
+    _processBangumiCharactersBatch(dtoList);
+  }
+
+  /// 后台批量处理 Bangumi 角色
+  ///
+  /// 分两阶段：
+  /// 1. 立即阶段：用搜索 DTO 中已有数据创建占位角色并入库、提交图片下载
+  /// 2. 补全阶段：并发拉取详情 API，补全生日 / originalData 等信息
+  Future<void> _processBangumiCharactersBatch(
     List<BangumiCharacterDto> dtoList,
   ) async {
     final bangumiService = BangumiService();
-    int addedCount = 0;
-    int skippedCount = 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
 
-    for (final simpleDto in dtoList) {
-      final detailDto = await bangumiService.getCharacterDetail(simpleDto.id);
+    // ───── 阶段 1：立即创建占位角色 ─────
+    final List<_PendingBangumiEntry> pendingEntries = [];
 
-      if (detailDto == null ||
-          detailDto.birthMon == null ||
-          detailDto.birthDay == null) {
-        skippedCount++;
-        continue;
-      }
+    for (int i = 0; i < dtoList.length; i++) {
+      final dto = dtoList[i];
+      final String id = '${now}_$i';
+      final int notificationId = (now + i) & 0x7FFFFFFF;
 
-      final String id =
-          DateTime.now().millisecondsSinceEpoch.toString() +
-          addedCount.toString();
-      final int notificationId =
-          (DateTime.now().millisecondsSinceEpoch + addedCount) & 0x7FFFFFFF;
+      // 搜索列表已经有生日的直接使用；没有的先占位 1/1，后续由详情补全
+      final bool hasBirthday = dto.hasBirthday;
 
-      // 先入库，头像路径暂存网络 URL
-      final newCharacter = BangumiCharacter(
+      final placeholder = BangumiCharacter(
         id: id,
         notificationId: notificationId,
-        name: detailDto.nameCn ?? detailDto.name,
-        birthYear: detailDto.birthYear,
-        birthMonth: detailDto.birthMon!,
-        birthDay: detailDto.birthDay!,
-        notify: true,
-        avatarPath: detailDto.avatarLargeUrl,
-        bangumiId: detailDto.id,
-        originalData: detailDto.originalData,
-        gridAvatarPath: detailDto.avatarGridUrl,
-        largeAvatarPath: detailDto.avatarLargeUrl,
+        name: dto.displayName,
+        birthYear: dto.birthYear,
+        birthMonth: dto.birthMon ?? 1,
+        birthDay: dto.birthDay ?? 1,
+        notify: hasBirthday, // 没有生日信息的先关闭通知
+        avatarPath: dto.avatarLargeUrl,
+        bangumiId: dto.id,
+        originalData: dto.originalData,
+        gridAvatarPath: dto.avatarGridUrl,
+        largeAvatarPath: dto.avatarLargeUrl,
+        avatarColor: Character.generateAvatarColor(),
       );
 
-      await _storageService.saveCharacter(newCharacter);
-      addedCount++;
+      await _storageService.saveCharacter(placeholder);
 
-      // 将图片下载任务加入后台队列
+      // 提交图片下载
       _imageService.enqueue(
         characterId: id,
-        characterName: newCharacter.name,
-        gridUrl: detailDto.avatarGridUrl,
-        largeUrl: detailDto.avatarLargeUrl,
+        characterName: placeholder.name,
+        gridUrl: dto.avatarGridUrl,
+        largeUrl: dto.avatarLargeUrl,
       );
+
+      // 搜索结果缺少生日 → 需要拉详情补全
+      if (!hasBirthday) {
+        pendingEntries.add(_PendingBangumiEntry(charId: id, bangumiId: dto.id));
+      }
     }
 
+    // 立即刷新 UI，让占位角色显示出来
     await _loadData();
-    return (addedCount, skippedCount);
+    debugPrint('批量占位创建完成: ${dtoList.length} 个');
+
+    // ───── 阶段 2：并发拉取详情补全缺失的生日信息 ─────
+    if (pendingEntries.isEmpty) return;
+
+    final futures = pendingEntries.map((entry) async {
+      try {
+        final detail = await bangumiService.getCharacterDetail(entry.bangumiId);
+        if (detail == null) return;
+
+        final index = _characters.indexWhere((c) => c.id == entry.charId);
+        if (index < 0) return;
+        final existing = _characters[index];
+        if (existing is! BangumiCharacter) return;
+
+        if (detail.birthMon != null && detail.birthDay != null) {
+          // 补全生日和完整 originalData
+          final updated = existing.copyWith(
+            name: detail.displayName,
+            birthYear: detail.birthYear,
+            birthMonth: detail.birthMon,
+            birthDay: detail.birthDay,
+            notify: true,
+            originalData: detail.originalData,
+            gridAvatarPath: detail.avatarGridUrl ?? existing.gridAvatarPath,
+            largeAvatarPath: detail.avatarLargeUrl ?? existing.largeAvatarPath,
+            avatarPath: detail.avatarLargeUrl ?? existing.avatarPath,
+          );
+          await _storageService.saveCharacter(updated);
+          _characters[index] = updated;
+        } else {
+          // 详情也没有生日 → 仅补全 originalData，保持 notify=false
+          final updated = existing.copyWith(
+            name: detail.displayName,
+            originalData: detail.originalData,
+          );
+          await _storageService.saveCharacter(updated);
+          _characters[index] = updated;
+        }
+      } catch (e) {
+        debugPrint('补全角色详情失败 [${entry.bangumiId}]: $e');
+      }
+    });
+
+    await Future.wait(futures);
+    notifyListeners();
+    debugPrint('批量详情补全完成: ${pendingEntries.length} 个');
   }
 
   /// 添加单个在线 Bangumi 角色（先入库，后台下载图片）
@@ -179,6 +240,7 @@ class CharacterProvider extends ChangeNotifier {
       originalData: dto.originalData,
       gridAvatarPath: dto.avatarGridUrl,
       largeAvatarPath: dto.avatarLargeUrl,
+      avatarColor: Character.generateAvatarColor(),
     );
 
     await _storageService.saveCharacter(newChar);
@@ -228,8 +290,8 @@ class CharacterProvider extends ChangeNotifier {
     return updated;
   }
 
-  /// 图片下载完成回调 → 更新角色的本地路径
-  Future<void> _onImageDownloaded(
+  /// 图片下载回调 → 更新角色的本地路径（每下载完一张就调用一次）
+  Future<void> _onImageReady(
     String characterId,
     String? gridPath,
     String? largePath,
@@ -284,4 +346,11 @@ class CharacterProvider extends ChangeNotifier {
     }
     await _storageService.saveAll(_characters);
   }
+}
+
+/// 批量添加时记录"需要后台补全详情"的占位条目
+class _PendingBangumiEntry {
+  final String charId;
+  final int bangumiId;
+  const _PendingBangumiEntry({required this.charId, required this.bangumiId});
 }

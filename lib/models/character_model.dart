@@ -1,3 +1,6 @@
+import 'dart:math';
+import 'package:flutter/painting.dart';
+
 abstract class Character {
   final String id;
   final int notificationId;
@@ -11,6 +14,9 @@ abstract class Character {
   final bool isLunar;
   final bool isSelf;
 
+  /// 头像背景色（ARGB int），创建时随机生成并持久化，保证每次启动一致
+  final int? avatarColor;
+
   Character({
     required this.id,
     required this.notificationId,
@@ -23,6 +29,7 @@ abstract class Character {
     required this.type,
     this.isLunar = false,
     this.isSelf = false,
+    this.avatarColor,
   });
 
   // 如果没有年份，默认使用当前年份
@@ -41,6 +48,15 @@ abstract class Character {
       return ManualCharacter.fromJson(json);
     }
   }
+
+  /// 随机生成一个柔和的 HSL 颜色的 ARGB int 值
+  static int generateAvatarColor() {
+    final random = Random();
+    final hue = random.nextDouble() * 360;
+    // 使用柔和的饱和度和亮度
+    final color = HSLColor.fromAHSL(1.0, hue, 0.35, 0.75);
+    return color.toColor().toARGB32();
+  }
 }
 
 class ManualCharacter extends Character {
@@ -55,6 +71,7 @@ class ManualCharacter extends Character {
     super.notify,
     super.isLunar,
     super.isSelf,
+    super.avatarColor,
   }) : super(type: 'manual');
 
   @override
@@ -71,6 +88,7 @@ class ManualCharacter extends Character {
       'type': type,
       'isLunar': isLunar,
       'isSelf': isSelf,
+      'avatarColor': avatarColor,
     };
   }
 
@@ -86,6 +104,7 @@ class ManualCharacter extends Character {
       notify: json['notify'] ?? true,
       isLunar: json['isLunar'] ?? false,
       isSelf: json['isSelf'] ?? false,
+      avatarColor: json['avatarColor'],
     );
   }
 
@@ -101,6 +120,7 @@ class ManualCharacter extends Character {
     bool? notify,
     bool? isLunar,
     bool? isSelf,
+    int? avatarColor,
   }) {
     return ManualCharacter(
       id: id ?? this.id,
@@ -113,6 +133,7 @@ class ManualCharacter extends Character {
       notify: notify ?? this.notify,
       isLunar: isLunar ?? this.isLunar,
       isSelf: isSelf ?? this.isSelf,
+      avatarColor: avatarColor ?? this.avatarColor,
     );
   }
 }
@@ -140,6 +161,7 @@ class BangumiCharacter extends Character {
     required this.originalData,
     this.gridAvatarPath,
     this.largeAvatarPath,
+    super.avatarColor,
   }) : super(type: 'bangumi');
 
   /// 获取列表显示用的头像（优先 grid）
@@ -164,6 +186,7 @@ class BangumiCharacter extends Character {
       'originalData': originalData,
       'gridAvatarPath': gridAvatarPath,
       'largeAvatarPath': largeAvatarPath,
+      'avatarColor': avatarColor,
     };
   }
 
@@ -181,6 +204,7 @@ class BangumiCharacter extends Character {
       originalData: Map<String, dynamic>.from(json['originalData'] ?? {}),
       gridAvatarPath: json['gridAvatarPath'],
       largeAvatarPath: json['largeAvatarPath'],
+      avatarColor: json['avatarColor'],
     );
   }
 
@@ -198,6 +222,7 @@ class BangumiCharacter extends Character {
     Map<String, dynamic>? originalData,
     String? gridAvatarPath,
     String? largeAvatarPath,
+    int? avatarColor,
   }) {
     return BangumiCharacter(
       id: id ?? this.id,
@@ -212,6 +237,7 @@ class BangumiCharacter extends Character {
       originalData: originalData ?? this.originalData,
       gridAvatarPath: gridAvatarPath ?? this.gridAvatarPath,
       largeAvatarPath: largeAvatarPath ?? this.largeAvatarPath,
+      avatarColor: avatarColor ?? this.avatarColor,
     );
   }
 }

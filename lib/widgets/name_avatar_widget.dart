@@ -4,11 +4,17 @@ import 'package:flutter/material.dart';
 ///
 /// 用于手动创建的角色和"你"，以名字首字代替默认 icon。
 /// Bangumi 角色在没有本地图片时也会用此显示。
+///
+/// 颜色优先使用外部传入的 [avatarColor]（持久化在 model 中），
+/// 若未提供则使用确定性 hash 生成（向后兼容旧数据）。
 class NameAvatarWidget extends StatelessWidget {
   final String name;
   final double size;
   final bool isSelf;
   final TextStyle? textStyle;
+
+  /// 外部传入的头像背景色（ARGB int），来自 Character.avatarColor
+  final int? avatarColor;
 
   const NameAvatarWidget({
     super.key,
@@ -16,15 +22,23 @@ class NameAvatarWidget extends StatelessWidget {
     this.size = 64,
     this.isSelf = false,
     this.textStyle,
+    this.avatarColor,
   });
 
-  /// 根据名字生成稳定的颜色
-  Color _generateColor(BuildContext context) {
+  /// 获取背景色：优先使用外部传入的持久化颜色，否则 fallback 到 hash
+  Color _getBackgroundColor(BuildContext context) {
     if (isSelf) {
       return Theme.of(context).colorScheme.primaryContainer;
     }
-    // 根据名字 hashCode 生成一个柔和的颜色
-    final hash = name.hashCode.abs();
+    if (avatarColor != null) {
+      return Color(avatarColor!);
+    }
+    // Fallback：确定性 hash（兼容没有 avatarColor 的旧数据）
+    int hash = 0x811c9dc5;
+    for (final codeUnit in name.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * 0x01000193) & 0xFFFFFFFF;
+    }
     final hue = (hash % 360).toDouble();
     return HSLColor.fromAHSL(1.0, hue, 0.35, 0.75).toColor();
   }
@@ -41,7 +55,7 @@ class NameAvatarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bgColor = _generateColor(context);
+    final bgColor = _getBackgroundColor(context);
     final initial = _getInitial();
     final fontSize = size * 0.4;
 

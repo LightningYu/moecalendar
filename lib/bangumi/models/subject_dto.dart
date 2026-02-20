@@ -33,3 +33,30 @@ class BangumiSubjectDto {
     );
   }
 }
+
+/// 条目搜索结果分页响应
+class BangumiSubjectSearchResponse {
+  final int total;
+  final int limit;
+  final int offset;
+  final List<BangumiSubjectDto> data;
+
+  BangumiSubjectSearchResponse({
+    required this.total,
+    required this.limit,
+    required this.offset,
+    required this.data,
+  });
+
+  factory BangumiSubjectSearchResponse.fromJson(Map<String, dynamic> json) {
+    final list = (json['data'] as List? ?? [])
+        .map((e) => BangumiSubjectDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return BangumiSubjectSearchResponse(
+      total: json['total'] as int? ?? 0,
+      limit: json['limit'] as int? ?? 0,
+      offset: json['offset'] as int? ?? 0,
+      data: list,
+    );
+  }
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../bangumi/bangumi.dart';
 import '../config/design_constants.dart';
+import 'name_avatar_widget.dart';
 
 /// 全局缓存：角色ID -> 完整数据
 /// 避免同一角色重复请求
@@ -137,16 +138,15 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
                       ? Image.network(
                           avatarUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Icon(
-                            Icons.person_outline,
-                            size: 28,
-                            color: theme.hintColor,
-                          ),
+                          errorBuilder: (context, error, stackTrace) =>
+                              NameAvatarWidget(
+                                name: character.displayName,
+                                size: DesignConstants.avatarSizeMd,
+                              ),
                         )
-                      : Icon(
-                          Icons.person_outline,
-                          size: 28,
-                          color: theme.hintColor,
+                      : NameAvatarWidget(
+                          name: character.displayName,
+                          size: DesignConstants.avatarSizeMd,
                         ),
                 ),
               ),

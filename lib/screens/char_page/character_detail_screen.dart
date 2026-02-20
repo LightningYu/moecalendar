@@ -392,7 +392,12 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     return SizedBox(
       height: 200,
       child: Center(
-        child: NameAvatarWidget(name: displayName, size: 120, isSelf: isSelf),
+        child: NameAvatarWidget(
+          name: displayName,
+          size: 120,
+          isSelf: isSelf,
+          avatarColor: _localCharacter?.avatarColor,
+        ),
       ),
     );
   }

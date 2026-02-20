@@ -52,6 +52,43 @@ class BangumiService {
     }
   }
 
+  /// 搜索条目（番剧，type=2 表示动画）
+  Future<BangumiSubjectSearchResponse> searchSubjects(
+    String keyword, {
+    int limit = 20,
+    int offset = 0,
+    List<int> types = const [2],
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/v0/search/subjects',
+        data: {
+          'keyword': keyword,
+          'filter': {'type': types},
+        },
+        queryParameters: {'limit': limit, 'offset': offset},
+      );
+
+      if (response.statusCode == 200) {
+        return BangumiSubjectSearchResponse.fromJson(response.data);
+      }
+      return BangumiSubjectSearchResponse(
+        total: 0,
+        limit: limit,
+        offset: offset,
+        data: [],
+      );
+    } catch (e) {
+      debugPrint('Bangumi Subject Search Error: $e');
+      return BangumiSubjectSearchResponse(
+        total: 0,
+        limit: limit,
+        offset: offset,
+        data: [],
+      );
+    }
+  }
+
   /// 获取角色详情
   Future<BangumiCharacterDto?> getCharacterDetail(int id) async {
     try {

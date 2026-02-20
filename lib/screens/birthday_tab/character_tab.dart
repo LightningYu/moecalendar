@@ -9,6 +9,7 @@ import '../../models/character_model.dart';
 import '../../config/routes/app_routes.dart';
 import '../../utils/zodiac_utils.dart';
 import '../../widgets/name_avatar_widget.dart';
+import '../../services/image_download_service.dart';
 
 enum SortType { grouped, date }
 
@@ -48,6 +49,18 @@ class _CharacterTabState extends State<CharacterTab> {
     } else {
       return FileImage(File(url));
     }
+  }
+
+  /// 为 BangumiCharacter 解析列表头像：优先下载缓存本地路径 → 模型字段 → 网络 URL
+  ImageProvider? _resolveBangumiListAvatar(BangumiCharacter character) {
+    final imageService = ImageDownloadService();
+    // 优先使用下载缓存的本地路径（grid 优先）
+    final cachedPath = imageService.getCachedListAvatar(character.id);
+    if (cachedPath != null) {
+      return FileImage(File(cachedPath));
+    }
+    // 降级到模型上的 listAvatar（可能是本地路径或网络 URL）
+    return _getAvatarProvider(character.listAvatar);
   }
 
   int _calculateDaysLeft(Character character) {
@@ -188,7 +201,6 @@ class _CharacterTabState extends State<CharacterTab> {
               itemCount: sortedList.length,
               itemBuilder: (context, index) {
                 final character = sortedList[index];
-                final isBangumi = character is BangumiCharacter;
                 return ListTile(
                   onTap: () {
                     context.push(
@@ -196,11 +208,12 @@ class _CharacterTabState extends State<CharacterTab> {
                       extra: character,
                     );
                   },
-                  leading: isBangumi && character.avatarPath != null
+                  leading: character is BangumiCharacter
                       ? CircleAvatar(
-                          backgroundImage: _getAvatarProvider(
-                            character.avatarPath,
-                          ),
+                          backgroundImage: _resolveBangumiListAvatar(character),
+                          backgroundColor: character.avatarColor != null
+                              ? Color(character.avatarColor!)
+                              : null,
                         )
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(20),
@@ -213,6 +226,7 @@ class _CharacterTabState extends State<CharacterTab> {
                             isSelf:
                                 character is ManualCharacter &&
                                 character.isSelf,
+                            avatarColor: character.avatarColor,
                           ),
                         ),
                   title: Text(
@@ -304,17 +318,21 @@ class _CharacterTabState extends State<CharacterTab> {
                             extra: character,
                           );
                         },
-                        leading: character.avatarPath != null
+                        leading: _resolveBangumiListAvatar(character) != null
                             ? CircleAvatar(
-                                backgroundImage: _getAvatarProvider(
-                                  character.avatarPath,
+                                backgroundImage: _resolveBangumiListAvatar(
+                                  character,
                                 ),
+                                backgroundColor: character.avatarColor != null
+                                    ? Color(character.avatarColor!)
+                                    : null,
                               )
                             : ClipRRect(
                                 borderRadius: BorderRadius.circular(20),
                                 child: NameAvatarWidget(
                                   name: character.name,
                                   size: 40,
+                                  avatarColor: character.avatarColor,
                                 ),
                               ),
                         title: Text(

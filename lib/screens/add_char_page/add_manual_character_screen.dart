@@ -69,8 +69,9 @@ class _AddManualCharacterScreenState extends State<AddManualCharacterScreen> {
         birthYear: _hasYear ? _selectedDate.year : null,
         birthMonth: _selectedDate.month,
         birthDay: _selectedDate.day,
-        notify: true, 
+        notify: true,
         isLunar: _isLunar,
+        avatarColor: Character.generateAvatarColor(),
       );
 
       await provider.addCharacter(newCharacter);
