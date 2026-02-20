@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/character_model.dart';
 import '../utils/zodiac_utils.dart';
+import '../config/design_constants.dart';
 
 /// 本地已保存角色的列表项组件
 /// 用于 character_tab.dart 中展示已添加的角色
@@ -61,12 +62,15 @@ class LocalCharacterListItem extends StatelessWidget {
     final displayName = isSelf ? '你' : character.name;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.cardMarginH,
+        vertical: DesignConstants.cardMarginV,
+      ),
       clipBehavior: Clip.antiAlias,
       // 自己使用特殊边框
       shape: isSelf
           ? RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(DesignConstants.cardRadius),
               side: BorderSide(
                 color: theme.colorScheme.primary.withValues(alpha: 0.5),
                 width: 2,
@@ -79,21 +83,21 @@ class LocalCharacterListItem extends StatelessWidget {
             : onTap,
         onLongPress: onLongPress,
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(DesignConstants.cardPadding),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // 多选模式下显示复选框
               if (isSelectionMode) ...[
                 Checkbox(value: isSelected, onChanged: onCheckChanged),
-                const SizedBox(width: 8),
+                const SizedBox(width: DesignConstants.spacingSm),
               ],
               // 头像
               ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
                 child: Container(
-                  width: 64,
-                  height: 64,
+                  width: DesignConstants.avatarSizeSm,
+                  height: DesignConstants.avatarSizeSm,
                   color: theme.colorScheme.surfaceContainerHighest,
                   child: avatarPath != null
                       ? Image(
@@ -105,7 +109,7 @@ class LocalCharacterListItem extends StatelessWidget {
                       : _buildPlaceholderAvatar(theme, isSelf),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: DesignConstants.spacingMd),
               // 信息区域
               Expanded(
                 child: Column(
@@ -122,16 +126,16 @@ class LocalCharacterListItem extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: DesignConstants.spacingXs),
                     // 生日
                     Row(
                       children: [
                         Icon(
                           Icons.cake_outlined,
-                          size: 14,
+                          size: DesignConstants.iconSizeMd,
                           color: theme.colorScheme.secondary,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: DesignConstants.spacingXs),
                         Text(
                           birthdayText,
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -140,11 +144,11 @@ class LocalCharacterListItem extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: DesignConstants.spacingSm),
                     // Tags 行
                     Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
+                      spacing: DesignConstants.spacingSm,
+                      runSpacing: DesignConstants.spacingXs,
                       children: [
                         // 来源类型 tag
                         _buildTag(
@@ -224,15 +228,18 @@ class LocalCharacterListItem extends StatelessWidget {
     Color textColor,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.tagPaddingH,
+        vertical: DesignConstants.tagPaddingV,
+      ),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(DesignConstants.tagRadius),
       ),
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: DesignConstants.tagFontSize,
           color: textColor,
           fontWeight: FontWeight.w500,
         ),

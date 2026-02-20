@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../bangumi/bangumi.dart';
+import '../config/design_constants.dart';
 
 /// 全局缓存：角色ID -> 完整数据
 /// 避免同一角色重复请求
@@ -102,7 +103,10 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
     final avatarUrl = character.listAvatarUrl;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.cardMarginH,
+        vertical: DesignConstants.cardMarginV,
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: widget.isSelectionMode
@@ -110,7 +114,7 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
             : widget.onTap,
         onLongPress: widget.onLongPress,
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(DesignConstants.cardPadding),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -120,14 +124,14 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
                   value: widget.isSelected,
                   onChanged: widget.onCheckChanged,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: DesignConstants.spacingSm),
               ],
               // 头像
               ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
                 child: Container(
-                  width: 72,
-                  height: 72,
+                  width: DesignConstants.avatarSizeMd,
+                  height: DesignConstants.avatarSizeMd,
                   color: theme.colorScheme.surfaceContainerHighest,
                   child: avatarUrl != null
                       ? Image.network(
@@ -146,7 +150,7 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
                         ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: DesignConstants.spacingMd),
               // 信息区域
               Expanded(
                 child: Column(
@@ -169,7 +173,7 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
                           ),
                         ),
                         if (character.subName != null) ...[
-                          const SizedBox(width: 6),
+                          const SizedBox(width: DesignConstants.spacingSm),
                           Flexible(
                             child: Text(
                               character.subName!,
@@ -183,11 +187,11 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
                         ],
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: DesignConstants.spacingSm),
                     // Tags 行
                     Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
+                      spacing: DesignConstants.spacingSm,
+                      runSpacing: DesignConstants.spacingXs,
                       children: [
                         // 角色类型 tag (主角/配角等)
                         if (character.roleName != null &&
@@ -232,14 +236,17 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
     } else if (_isLoading) {
       // 加载中
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(
+          horizontal: DesignConstants.tagPaddingH,
+          vertical: DesignConstants.tagPaddingV,
+        ),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(DesignConstants.tagRadius),
         ),
         child: SizedBox(
-          width: 12,
-          height: 12,
+          width: DesignConstants.iconSizeSm,
+          height: DesignConstants.iconSizeSm,
           child: CircularProgressIndicator(
             strokeWidth: 1.5,
             color: theme.colorScheme.onSurfaceVariant,
@@ -268,22 +275,25 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
     IconData? icon,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.tagPaddingH,
+        vertical: DesignConstants.tagPaddingV,
+      ),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(DesignConstants.tagRadius),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 12, color: textColor),
-            const SizedBox(width: 3),
+            Icon(icon, size: DesignConstants.iconSizeSm, color: textColor),
+            const SizedBox(width: DesignConstants.spacingXs),
           ],
           Text(
             text,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: DesignConstants.tagFontSize,
               color: textColor,
               fontWeight: FontWeight.w500,
             ),

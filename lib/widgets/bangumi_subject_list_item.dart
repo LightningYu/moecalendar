@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../bangumi/bangumi.dart';
+import '../config/design_constants.dart';
 
 /// 番剧条目列表项组件
 /// 用于展示番剧收藏列表，使用较大的封面图
@@ -18,20 +19,23 @@ class BangumiSubjectListItem extends StatelessWidget {
     final subName = subject.nameCn.isNotEmpty ? subject.name : null;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.cardMarginH,
+        vertical: DesignConstants.cardMarginV,
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(DesignConstants.cardPadding),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 封面图 - 使用较大尺寸展示高精度图片
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(DesignConstants.radiusSm),
                 child: Container(
-                  width: 80,
+                  width: DesignConstants.avatarSizeLg,
                   height: 110,
                   color: theme.colorScheme.surfaceContainerHighest,
                   child: subject.image != null
@@ -51,7 +55,7 @@ class BangumiSubjectListItem extends StatelessWidget {
                         ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: DesignConstants.spacing),
               // 信息区域
               Expanded(
                 child: Column(
@@ -66,7 +70,7 @@ class BangumiSubjectListItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (subName != null) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: DesignConstants.spacingXs),
                       Text(
                         subName,
                         style: theme.textTheme.bodySmall?.copyWith(

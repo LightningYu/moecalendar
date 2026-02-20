@@ -4,6 +4,7 @@ import 'package:moecalendar/config/app_info.dart';
 import 'package:provider/provider.dart';
 import '../../config/routes/app_routes.dart';
 import '../../providers/theme_provider.dart';
+import '../../config/design_constants.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -127,18 +128,20 @@ class SettingsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
+        Padding(
+          padding: const EdgeInsets.all(DesignConstants.spacing),
+          child: const Text(
             '主题颜色',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignConstants.spacing,
+          ),
           child: Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: DesignConstants.spacingMd,
+            runSpacing: DesignConstants.spacingMd,
             children: colors.map((color) {
               return GestureDetector(
                 onTap: () => themeProvider.setSeedColor(color),
@@ -163,7 +166,7 @@ class SettingsScreen extends StatelessWidget {
             }).toList(),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: DesignConstants.spacing),
       ],
     );
   }
