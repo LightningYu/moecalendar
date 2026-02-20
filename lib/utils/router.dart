@@ -19,6 +19,7 @@ import '../screens/settings_page/settings_screen.dart';
 import '../screens/settings_page/bangumi_settings_screen.dart';
 import '../screens/settings_page/profile_screen.dart';
 import '../screens/settings_page/about_screen.dart';
+import '../screens/settings_page/data_sync_screen.dart';
 import '../models/character_model.dart';
 import '../config/routes/app_routes.dart';
 import '../services/permission_service.dart';
@@ -98,6 +99,11 @@ final router = GoRouter(
           path: AppRoutes.about,
           parentNavigatorKey: _rootNavigatorKey,
           builder: (context, state) => const AboutScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.dataSync,
+          parentNavigatorKey: _rootNavigatorKey,
+          builder: (context, state) => const DataSyncScreen(),
         ),
       ],
     ),

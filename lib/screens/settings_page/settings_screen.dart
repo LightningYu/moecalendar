@@ -38,6 +38,14 @@ class SettingsScreen extends StatelessWidget {
               ),
               const Divider(),
               ListTile(
+                leading: const Icon(Icons.sync_alt),
+                title: const Text('数据管理'),
+                subtitle: const Text('导出、导入角色数据'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRoutes.dataSyncPath),
+              ),
+              const Divider(),
+              ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('关于应用'),
                 subtitle: const Text('版本信息、开发者信息'),
@@ -152,7 +160,8 @@ class SettingsScreen extends StatelessWidget {
                     color: color,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: themeProvider.seedColor.toARGB32() == color.toARGB32()
+                      color:
+                          themeProvider.seedColor.toARGB32() == color.toARGB32()
                           ? Theme.of(context).colorScheme.onSurface
                           : Colors.transparent,
                       width: 2,

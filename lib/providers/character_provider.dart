@@ -43,10 +43,13 @@ class CharacterProvider extends ChangeNotifier {
 
   Future<void> _init() async {
     await _loadData();
+    await _migrateAvatarColors();
     _imageService.onImageReady = _onImageReady;
     _imageService.addListener(_onDownloadProgress);
     // 恢复之前未完成的下载任务
     await _imageService.init();
+    // 扫描库中缺少本地图片的 Bangumi 角色，提交下载
+    _syncDownloads();
   }
 
   /// 新增角色
@@ -107,42 +110,41 @@ class CharacterProvider extends ChangeNotifier {
 
   /// 批量添加 Bangumi 角色（非阻塞）
   ///
-  /// 立即用搜索结果中已有的信息创建占位角色（含名称和图片 URL），
-  /// 然后在后台并发拉取详情以补全生日等信息。
+  /// 直接从搜索 DTO 创建角色入库（DTO 中已有完整 JSON 数据），
+  /// 缺少生日的角色直接跳过不入库。
+  /// 入库后由 [_syncDownloads] 驱动图片下载。
   void addBangumiCharactersAsync(List<BangumiCharacterDto> dtoList) {
     _processBangumiCharactersBatch(dtoList);
   }
 
-  /// 后台批量处理 Bangumi 角色
-  ///
-  /// 分两阶段：
-  /// 1. 立即阶段：用搜索 DTO 中已有数据创建占位角色并入库、提交图片下载
-  /// 2. 补全阶段：并发拉取详情 API，补全生日 / originalData 等信息
+  /// 批量处理 Bangumi 角色：只入库有生日的，图片下载由库数据驱动
   Future<void> _processBangumiCharactersBatch(
     List<BangumiCharacterDto> dtoList,
   ) async {
-    final bangumiService = BangumiService();
     final now = DateTime.now().millisecondsSinceEpoch;
-
-    // ───── 阶段 1：立即创建占位角色 ─────
-    final List<_PendingBangumiEntry> pendingEntries = [];
+    int addedCount = 0;
+    int skippedCount = 0;
 
     for (int i = 0; i < dtoList.length; i++) {
       final dto = dtoList[i];
+
+      // 缺少生日的直接跳过
+      if (!dto.hasBirthday) {
+        skippedCount++;
+        continue;
+      }
+
       final String id = '${now}_$i';
       final int notificationId = (now + i) & 0x7FFFFFFF;
 
-      // 搜索列表已经有生日的直接使用；没有的先占位 1/1，后续由详情补全
-      final bool hasBirthday = dto.hasBirthday;
-
-      final placeholder = BangumiCharacter(
+      final newCharacter = BangumiCharacter(
         id: id,
         notificationId: notificationId,
         name: dto.displayName,
         birthYear: dto.birthYear,
-        birthMonth: dto.birthMon ?? 1,
-        birthDay: dto.birthDay ?? 1,
-        notify: hasBirthday, // 没有生日信息的先关闭通知
+        birthMonth: dto.birthMon!,
+        birthDay: dto.birthDay!,
+        notify: true,
         avatarPath: dto.avatarLargeUrl,
         bangumiId: dto.id,
         originalData: dto.originalData,
@@ -151,74 +153,60 @@ class CharacterProvider extends ChangeNotifier {
         avatarColor: Character.generateAvatarColor(),
       );
 
-      await _storageService.saveCharacter(placeholder);
-
-      // 提交图片下载
-      _imageService.enqueue(
-        characterId: id,
-        characterName: placeholder.name,
-        gridUrl: dto.avatarGridUrl,
-        largeUrl: dto.avatarLargeUrl,
-      );
-
-      // 搜索结果缺少生日 → 需要拉详情补全
-      if (!hasBirthday) {
-        pendingEntries.add(_PendingBangumiEntry(charId: id, bangumiId: dto.id));
-      }
+      await _storageService.saveCharacter(newCharacter);
+      addedCount++;
     }
 
-    // 立即刷新 UI，让占位角色显示出来
-    await _loadData();
-    debugPrint('批量占位创建完成: ${dtoList.length} 个');
+    if (addedCount > 0) {
+      await _loadData();
+      // 入库后扫描并提交图片下载
+      _syncDownloads();
+    }
 
-    // ───── 阶段 2：并发拉取详情补全缺失的生日信息 ─────
-    if (pendingEntries.isEmpty) return;
-
-    final futures = pendingEntries.map((entry) async {
-      try {
-        final detail = await bangumiService.getCharacterDetail(entry.bangumiId);
-        if (detail == null) return;
-
-        final index = _characters.indexWhere((c) => c.id == entry.charId);
-        if (index < 0) return;
-        final existing = _characters[index];
-        if (existing is! BangumiCharacter) return;
-
-        if (detail.birthMon != null && detail.birthDay != null) {
-          // 补全生日和完整 originalData
-          final updated = existing.copyWith(
-            name: detail.displayName,
-            birthYear: detail.birthYear,
-            birthMonth: detail.birthMon,
-            birthDay: detail.birthDay,
-            notify: true,
-            originalData: detail.originalData,
-            gridAvatarPath: detail.avatarGridUrl ?? existing.gridAvatarPath,
-            largeAvatarPath: detail.avatarLargeUrl ?? existing.largeAvatarPath,
-            avatarPath: detail.avatarLargeUrl ?? existing.avatarPath,
-          );
-          await _storageService.saveCharacter(updated);
-          _characters[index] = updated;
-        } else {
-          // 详情也没有生日 → 仅补全 originalData，保持 notify=false
-          final updated = existing.copyWith(
-            name: detail.displayName,
-            originalData: detail.originalData,
-          );
-          await _storageService.saveCharacter(updated);
-          _characters[index] = updated;
-        }
-      } catch (e) {
-        debugPrint('补全角色详情失败 [${entry.bangumiId}]: $e');
-      }
-    });
-
-    await Future.wait(futures);
-    notifyListeners();
-    debugPrint('批量详情补全完成: ${pendingEntries.length} 个');
+    debugPrint('批量添加完成: 添加 $addedCount 个，跳过 $skippedCount 个（无生日）');
   }
 
-  /// 添加单个在线 Bangumi 角色（先入库，后台下载图片）
+  /// 扫描库中所有 Bangumi 角色，将缺少本地图片的提交到下载队列
+  ///
+  /// 下载服务是响应库数据的——库里有什么角色，就下载什么图片。
+  void _syncDownloads() {
+    for (final c in _characters) {
+      if (c is! BangumiCharacter) continue;
+      // 已有完成的任务就跳过
+      final existing = _imageService.getTask(c.id);
+      if (existing != null &&
+          existing.status == DownloadStatus.completed &&
+          !existing.hasUnfinishedWork) {
+        continue;
+      }
+      // 已有进行中的任务也跳过
+      if (existing != null &&
+          (existing.status == DownloadStatus.pending ||
+              existing.status == DownloadStatus.downloading)) {
+        continue;
+      }
+      // 有网络 URL 但缺少本地缓存 → 加入队列
+      final needsGrid =
+          c.gridAvatarPath != null &&
+          c.gridAvatarPath!.startsWith('http') &&
+          _imageService.getCachedGridPath(c.id) == null;
+      final needsLarge =
+          c.largeAvatarPath != null &&
+          c.largeAvatarPath!.startsWith('http') &&
+          _imageService.getCachedLargePath(c.id) == null;
+
+      if (needsGrid || needsLarge) {
+        _imageService.enqueue(
+          characterId: c.id,
+          characterName: c.name,
+          gridUrl: needsGrid ? c.gridAvatarPath : null,
+          largeUrl: needsLarge ? c.largeAvatarPath : null,
+        );
+      }
+    }
+  }
+
+  /// 添加单个在线 Bangumi 角色（先入库，图片由同步驱动）
   Future<BangumiCharacter?> addBangumiCharacterFromDto(
     BangumiCharacterDto dto,
   ) async {
@@ -245,19 +233,12 @@ class CharacterProvider extends ChangeNotifier {
 
     await _storageService.saveCharacter(newChar);
     await _loadData();
-
-    // 后台下载图片
-    _imageService.enqueue(
-      characterId: id,
-      characterName: newChar.name,
-      gridUrl: dto.avatarGridUrl,
-      largeUrl: dto.avatarLargeUrl,
-    );
+    _syncDownloads();
 
     return newChar;
   }
 
-  /// 刷新本地 Bangumi 角色数据（重新拉取 API + 后台下载图片）
+  /// 刷新本地 Bangumi 角色数据（重新拉取 API + 同步下载图片）
   Future<BangumiCharacter?> refreshBangumiCharacter(
     BangumiCharacter bangumiChar,
   ) async {
@@ -278,14 +259,7 @@ class CharacterProvider extends ChangeNotifier {
 
     await _storageService.saveCharacter(updated);
     await _loadData();
-
-    // 后台下载新图片
-    _imageService.enqueue(
-      characterId: bangumiChar.id,
-      characterName: updated.name,
-      gridUrl: dto.avatarGridUrl,
-      largeUrl: dto.avatarLargeUrl,
-    );
+    _syncDownloads();
 
     return updated;
   }
@@ -330,6 +304,81 @@ class CharacterProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 迁移旧数据：为缺少 avatarColor 的角色自动生成颜色并持久化
+  Future<void> _migrateAvatarColors() async {
+    bool needsSave = false;
+    for (int i = 0; i < _characters.length; i++) {
+      final c = _characters[i];
+      if (c.avatarColor != null) continue;
+
+      needsSave = true;
+      if (c is ManualCharacter) {
+        _characters[i] = c.copyWith(
+          avatarColor: Character.generateAvatarColor(),
+        );
+      } else if (c is BangumiCharacter) {
+        _characters[i] = c.copyWith(
+          avatarColor: Character.generateAvatarColor(),
+        );
+      }
+    }
+    if (needsSave) {
+      await _storageService.saveAll(_characters);
+      debugPrint('avatarColor 迁移完成');
+    }
+  }
+
+  /// 导入角色数据（用于数据同步）
+  ///
+  /// [mode] 'merge' 合并（保留已有，补充新的），'replace' 完全替换
+  /// 返回 (added, updated, total)
+  Future<({int added, int updated, int total})> importCharacters(
+    List<Character> imported, {
+    String mode = 'merge',
+  }) async {
+    if (mode == 'replace') {
+      await _storageService.saveAll(imported);
+      await _loadData();
+      await _migrateAvatarColors();
+      _syncDownloads();
+      return (added: imported.length, updated: 0, total: imported.length);
+    }
+
+    // merge 模式
+    final existing = await _storageService.getCharacters();
+    final existingIds = existing.map((c) => c.id).toSet();
+    // 对于 BangumiCharacter，也按 bangumiId 去重
+    final existingBangumiIds = existing
+        .whereType<BangumiCharacter>()
+        .map((c) => c.bangumiId)
+        .toSet();
+
+    int added = 0;
+    int updated = 0;
+
+    for (final c in imported) {
+      if (c is BangumiCharacter && existingBangumiIds.contains(c.bangumiId)) {
+        // bangumiId 已存在 → 跳过
+        continue;
+      }
+      if (existingIds.contains(c.id)) {
+        // id 完全匹配 → 更新
+        final idx = existing.indexWhere((e) => e.id == c.id);
+        existing[idx] = c;
+        updated++;
+      } else {
+        existing.add(c);
+        added++;
+      }
+    }
+
+    await _storageService.saveAll(existing);
+    await _loadData();
+    await _migrateAvatarColors();
+    _syncDownloads();
+    return (added: added, updated: updated, total: existing.length);
+  }
+
   Future<void> _repairSelfFlag() async {
     final selfList = _characters
         .whereType<ManualCharacter>()
@@ -346,11 +395,4 @@ class CharacterProvider extends ChangeNotifier {
     }
     await _storageService.saveAll(_characters);
   }
-}
-
-/// 批量添加时记录"需要后台补全详情"的占位条目
-class _PendingBangumiEntry {
-  final String charId;
-  final int bangumiId;
-  const _PendingBangumiEntry({required this.charId, required this.bangumiId});
 }

@@ -36,4 +36,6 @@ class AppRoutes {
   static const String profilePath = '$settings/$profile';
   static const String about = 'about';
   static const String aboutPath = '$settings/$about';
+  static const String dataSync = 'data_sync';
+  static const String dataSyncPath = '$settings/$dataSync';
 }
