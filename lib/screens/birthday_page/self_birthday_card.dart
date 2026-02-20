@@ -17,7 +17,6 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
   late Timer _timer;
   double _preciseAge = 0.0;
 
-  // 直接存储计算结果，不依赖 Duration
   int _totalYears = 0;
   int _totalMonths = 0;
   int _totalWeeks = 0;
@@ -30,7 +29,9 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
     super.initState();
     _updateTime();
     _timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      _updateTime();
+      if (mounted) {
+        _updateTime();
+      }
     });
   }
 
@@ -44,29 +45,25 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
       widget.character.birthDay,
     );
 
-    final totalDays = now.difference(birthDate).inDays;
+    final duration = now.difference(birthDate);
+    final totalDays = duration.inDays;
     const daysPerYear = 365.2425;
+
+    // 粗略计算岁数
     final age = totalDays / daysPerYear;
 
-    // 累计换算各单位
-    final totalWeeks = totalDays ~/ 7;
-    final totalMonths = (totalDays / 30.4375).floor();
-    final totalYears = (totalDays / daysPerYear).floor();
-
-    // 时间部分：从午夜到现在的秒数 + 总天数的秒数
-    final secondsSinceMidnight = now.hour * 3600 + now.minute * 60 + now.second;
-    final totalSecondsLived = totalDays * 86400 + secondsSinceMidnight;
-    final totalHours = totalSecondsLived ~/ 3600;
-    final totalMinutes = totalSecondsLived ~/ 60;
+    final totalSecondsLived = duration.inSeconds;
 
     setState(() {
-      _preciseAge = age + (secondsSinceMidnight / 86400 / daysPerYear);
-      _totalYears = totalYears;
-      _totalMonths = totalMonths;
-      _totalWeeks = totalWeeks;
+      // 通过毫秒数使得岁数更新更连续 平滑
+      _preciseAge =
+          age + (duration.inMilliseconds % 86400000) / 86400000 / daysPerYear;
+      _totalYears = (totalDays / daysPerYear).floor();
+      _totalMonths = (totalDays / 30.4375).floor();
+      _totalWeeks = totalDays ~/ 7;
       _totalDays = totalDays;
-      _totalHours = totalHours;
-      _totalMinutes = totalMinutes;
+      _totalHours = totalSecondsLived ~/ 3600;
+      _totalMinutes = totalSecondsLived ~/ 60;
     });
   }
 
@@ -79,88 +76,140 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
   @override
   Widget build(BuildContext context) {
     if (widget.character.birthYear == null) {
-      return const Center(child: Text('请设置出生年份以查看详细数据'));
-    }
-
-    return SingleChildScrollView(
-      child: Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '你已经',
-              style: TextStyle(
-                fontSize: 20,
-                color: Theme.of(context).hintColor,
-              ),
+            Icon(
+              Icons.cake_outlined,
+              size: 64,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
             ),
-            const SizedBox(height: 10),
-            Text(
-              _preciseAge.toStringAsFixed(6),
-              maxLines: 1,
-              overflow: TextOverflow.fade,
-              softWrap: false,
-              style: const TextStyle(
-                fontSize: 40,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'monospace',
+            const SizedBox(height: DesignConstants.spacing),
+            const Text('请设置出生年份以查看人生进度'),
+          ],
+        ),
+      );
+    }
+
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(DesignConstants.spacing),
+      child: Column(
+        children: [
+          // 顶部显示精准年龄
+          _buildAgeCard(context),
+          const SizedBox(height: DesignConstants.spacingLg),
+
+          // 在线时长标题
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            Text(
-              '岁了',
-              style: TextStyle(
-                fontSize: 20,
-                color: Theme.of(context).hintColor,
+              const SizedBox(width: DesignConstants.spacingSm),
+              Text(
+                '你在地球上已逗留',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 30),
-            Text(
-              '在线时长',
-              style: Theme.of(
+            ],
+          ),
+          const SizedBox(height: DesignConstants.spacing),
+
+          // 核心统计网格
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 1.6,
+            mainAxisSpacing: DesignConstants.spacing,
+            crossAxisSpacing: DesignConstants.spacing,
+            children: [
+              _buildStatTile(context, '岁', _totalYears, Icons.event),
+              _buildStatTile(context, '月', _totalMonths, Icons.calendar_month),
+              _buildStatTile(context, '周', _totalWeeks, Icons.view_week),
+              _buildStatTile(context, '天', _totalDays, Icons.today),
+              _buildStatTile(context, '小时', _totalHours, Icons.schedule),
+              _buildStatTile(
                 context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: DesignConstants.spacing * 1.25),
-            Container(
-              margin: const EdgeInsets.symmetric(
-                horizontal: DesignConstants.spacingXl,
+                '分钟',
+                _totalMinutes,
+                Icons.timer_outlined,
               ),
-              padding: const EdgeInsets.all(DesignConstants.spacing),
-              decoration: BoxDecoration(
-                border: Border.all(color: Theme.of(context).dividerColor),
-                borderRadius: BorderRadius.circular(DesignConstants.radiusLg),
-              ),
-              child: Column(
-                children: [
-                  _buildTableRow(
-                    3,
-                    ['年', '月', '周'],
-                    [_totalYears, _totalMonths, _totalWeeks],
-                  ),
-                  const Divider(height: 30),
-                  _buildTableRow(
-                    3,
-                    ['天', '小时', '分钟'],
-                    [_totalDays, _totalHours, _totalMinutes],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 30),
-            ElevatedButton(
+            ],
+          ),
+
+          const SizedBox(height: DesignConstants.spacingXl),
+
+          // 底部操作
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
               onPressed: () {
                 context.push(AppRoutes.congratulate, extra: widget.character);
               },
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
+              icon: const Icon(Icons.auto_stories_outlined),
+              label: const Text('查看人生日志', style: TextStyle(fontSize: 16)),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
+                  borderRadius: BorderRadius.circular(DesignConstants.radiusLg),
                 ),
               ),
-              child: const Text('人生日志', style: TextStyle(fontSize: 18)),
+            ),
+          ),
+          const SizedBox(height: DesignConstants.spacingXl),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgeCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 0,
+      color: colorScheme.primaryContainer.withOpacity(0.3),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(DesignConstants.radiusLg),
+        side: BorderSide(color: colorScheme.primary.withOpacity(0.1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(DesignConstants.spacingLg),
+        child: Column(
+          children: [
+            Text(
+              '你已经',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: DesignConstants.spacingSm),
+            FittedBox(
+              child: Text(
+                _preciseAge.toStringAsFixed(8),
+                style: const TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'monospace',
+                  letterSpacing: -1,
+                ),
+              ),
+            ),
+            const SizedBox(height: DesignConstants.spacingSm),
+            Text(
+              '岁了',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -168,36 +217,58 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
     );
   }
 
-  Widget _buildTableRow(int length, List<String> labels, List<int> values) {
-    return Row(
-      children: List.generate(length, (index) {
-        return Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                labels[index],
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).hintColor,
-                ),
-              ),
-              const SizedBox(height: 6),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  values[index].toString(),
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
+  Widget _buildStatTile(
+    BuildContext context,
+    String label,
+    int value,
+    IconData icon,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(DesignConstants.spacing),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
+        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(DesignConstants.spacingXs),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 20, color: colorScheme.primary),
+          ),
+          const SizedBox(width: DesignConstants.spacingSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value.toString(),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ),
-              ),
-            ],
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
-        );
-      }),
+        ],
+      ),
     );
   }
 }

@@ -117,7 +117,7 @@ class _BirthdayGridScreenState extends State<BirthdayGridScreen> {
                                             fontWeight: FontWeight.bold,
                                             color: Theme.of(
                                               context,
-                                            ).primaryColor,
+                                            ).colorScheme.onSurface,
                                           ),
                                         ),
                                         const Text(
