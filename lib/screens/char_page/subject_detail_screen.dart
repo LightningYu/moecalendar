@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:dio/dio.dart';
-import 'package:path/path.dart' as path;
 import '../../bangumi/bangumi.dart';
-import '../../models/character_model.dart';
 import '../../providers/character_provider.dart';
-import '../../utils/path_manager.dart';
 import '../../widgets/bangumi_character_list_item.dart';
 import 'character_detail_screen.dart';
 
@@ -99,24 +95,6 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     });
   }
 
-  Future<String?> _downloadImage(
-    String url,
-    String id, {
-    String suffix = '',
-  }) async {
-    try {
-      final extension = path.extension(url);
-      final fileName = 'avatar_$id$suffix$extension';
-      final savePath = PathManager().getImagePath(fileName);
-
-      await Dio().download(url, savePath);
-      return savePath;
-    } catch (e) {
-      debugPrint('Error downloading image: $e');
-      return null;
-    }
-  }
-
   Future<void> _addSelectedCharacters() async {
     if (_selectedIds.isEmpty) return;
 
@@ -125,61 +103,14 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     });
 
     final provider = Provider.of<CharacterProvider>(context, listen: false);
-    int addedCount = 0;
-    int skippedCount = 0;
 
     final selectedList = _characters
         .where((c) => _selectedIds.contains(c.id))
         .toList();
 
-    for (final simpleDto in selectedList) {
-      // Fetch full details to get birthday
-      final detailDto = await _bangumiService.getCharacterDetail(simpleDto.id);
-
-      if (detailDto == null ||
-          detailDto.birthMon == null ||
-          detailDto.birthDay == null) {
-        skippedCount++;
-        continue;
-      }
-
-      final String id =
-          DateTime.now().millisecondsSinceEpoch.toString() +
-          addedCount.toString();
-      final int notificationId =
-          (DateTime.now().millisecondsSinceEpoch + addedCount) & 0x7FFFFFFF;
-
-      // 下载 grid 和 large 两个图片
-      String? gridPath;
-      String? largePath;
-      final gridImage = detailDto.avatarGridUrl;
-      final largeImage = detailDto.avatarLargeUrl;
-
-      if (gridImage != null) {
-        gridPath = await _downloadImage(gridImage, id, suffix: '_grid');
-      }
-      if (largeImage != null) {
-        largePath = await _downloadImage(largeImage, id, suffix: '_large');
-      }
-
-      final newCharacter = BangumiCharacter(
-        id: id,
-        notificationId: notificationId,
-        name: detailDto.nameCn ?? detailDto.name,
-        birthYear: detailDto.birthYear,
-        birthMonth: detailDto.birthMon!,
-        birthDay: detailDto.birthDay!,
-        notify: true,
-        avatarPath: largePath ?? largeImage,
-        bangumiId: detailDto.id,
-        originalData: detailDto.originalData,
-        gridAvatarPath: gridPath ?? gridImage,
-        largeAvatarPath: largePath ?? largeImage,
-      );
-
-      await provider.addCharacter(newCharacter);
-      addedCount++;
-    }
+    final (addedCount, skippedCount) = await provider.addBangumiCharacters(
+      selectedList,
+    );
 
     setState(() {
       _isAdding = false;
@@ -189,7 +120,9 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('已添加 $addedCount 个角色，跳过 $skippedCount 个（无生日信息）'),
+          content: Text(
+            '已添加 $addedCount 个角色，跳过 $skippedCount 个（无生日信息）\n图片将在后台下载',
+          ),
         ),
       );
     }

@@ -2,14 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:dio/dio.dart';
-import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/character_model.dart';
 import '../../providers/character_provider.dart';
 import '../../bangumi/bangumi.dart';
-import '../../utils/path_manager.dart';
 import '../../services/calendar_service.dart';
+import '../../widgets/name_avatar_widget.dart';
 
 /// 统一的角色详情页
 ///
@@ -157,10 +155,10 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     setState(() => _isRefreshing = true);
 
     try {
-      final dto = await _bangumiService.getCharacterDetail(
-        bangumiChar.bangumiId,
-      );
-      if (dto == null) {
+      final provider = Provider.of<CharacterProvider>(context, listen: false);
+      final updated = await provider.refreshBangumiCharacter(bangumiChar);
+
+      if (updated == null) {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -169,45 +167,11 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
         return;
       }
 
-      // 下载新图片
-      String? gridPath, largePath;
-      if (dto.avatarGridUrl != null) {
-        gridPath = await _downloadImage(
-          dto.avatarGridUrl!,
-          bangumiChar.id,
-          suffix: '_grid',
-        );
-      }
-      if (dto.avatarLargeUrl != null) {
-        largePath = await _downloadImage(
-          dto.avatarLargeUrl!,
-          bangumiChar.id,
-          suffix: '_large',
-        );
-      }
-
-      final updated = bangumiChar.copyWith(
-        name: dto.displayName,
-        birthYear: dto.birthYear,
-        birthMonth: dto.birthMon ?? bangumiChar.birthMonth,
-        birthDay: dto.birthDay ?? bangumiChar.birthDay,
-        originalData: dto.originalData,
-        gridAvatarPath: gridPath ?? dto.avatarGridUrl,
-        largeAvatarPath: largePath ?? dto.avatarLargeUrl,
-        avatarPath: largePath ?? dto.avatarLargeUrl,
-      );
-
-      if (!mounted) return;
-      await Provider.of<CharacterProvider>(
-        context,
-        listen: false,
-      ).updateCharacter(updated);
-
       if (mounted) {
         setState(() => _localCharacter = updated);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('角色数据已更新')));
+        ).showSnackBar(const SnackBar(content: Text('角色数据已更新，图片将在后台下载')));
       }
     } catch (e) {
       if (mounted) {
@@ -234,48 +198,13 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
 
     try {
       final provider = Provider.of<CharacterProvider>(context, listen: false);
-      final id = DateTime.now().millisecondsSinceEpoch.toString();
-      final notificationId = DateTime.now().millisecondsSinceEpoch & 0x7FFFFFFF;
+      final newChar = await provider.addBangumiCharacterFromDto(dto);
 
-      // 下载图片
-      String? gridPath, largePath;
-      if (dto.avatarGridUrl != null) {
-        gridPath = await _downloadImage(
-          dto.avatarGridUrl!,
-          id,
-          suffix: '_grid',
+      if (newChar != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已添加 ${dto.displayName}，图片将在后台下载')),
         );
-      }
-      if (dto.avatarLargeUrl != null) {
-        largePath = await _downloadImage(
-          dto.avatarLargeUrl!,
-          id,
-          suffix: '_large',
-        );
-      }
-
-      final newChar = BangumiCharacter(
-        id: id,
-        notificationId: notificationId,
-        name: dto.displayName,
-        birthYear: dto.birthYear,
-        birthMonth: dto.birthMon!,
-        birthDay: dto.birthDay!,
-        notify: true,
-        avatarPath: largePath ?? dto.avatarLargeUrl,
-        bangumiId: dto.id,
-        originalData: dto.originalData,
-        gridAvatarPath: gridPath ?? dto.avatarGridUrl,
-        largeAvatarPath: largePath ?? dto.avatarLargeUrl,
-      );
-
-      await provider.addCharacter(newChar);
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('已添加 ${dto.displayName}')));
-        Navigator.pop(context, true); // 返回 true 表示已添加
+        Navigator.pop(context, true);
       }
     } finally {
       if (mounted) setState(() => _isAdding = false);
@@ -313,23 +242,6 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
         listen: false,
       ).deleteCharacter(_localCharacter!.id);
       if (mounted) Navigator.pop(context);
-    }
-  }
-
-  Future<String?> _downloadImage(
-    String url,
-    String id, {
-    String suffix = '',
-  }) async {
-    try {
-      final ext = path.extension(url);
-      final fileName = 'avatar_$id$suffix$ext';
-      final savePath = PathManager().getImagePath(fileName);
-      await Dio().download(url, savePath);
-      return savePath;
-    } catch (e) {
-      debugPrint('Error downloading image: $e');
-      return null;
     }
   }
 
@@ -479,7 +391,9 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
   Widget _buildPlaceholder(ThemeData theme) {
     return SizedBox(
       height: 200,
-      child: Icon(Icons.person_outline, size: 64, color: theme.hintColor),
+      child: Center(
+        child: NameAvatarWidget(name: displayName, size: 120, isSelf: isSelf),
+      ),
     );
   }
 
@@ -649,7 +563,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
             Text('详细信息', style: theme.textTheme.titleMedium),
             const SizedBox(height: 12),
             ...infobox.map((item) {
-              if (item is! Map || item['key'] == null){
+              if (item is! Map || item['key'] == null) {
                 return const SizedBox.shrink();
               }
               final key = item['key'].toString();

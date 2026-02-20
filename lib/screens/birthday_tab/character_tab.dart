@@ -8,6 +8,7 @@ import '../../providers/character_provider.dart';
 import '../../models/character_model.dart';
 import '../../config/routes/app_routes.dart';
 import '../../utils/zodiac_utils.dart';
+import '../../widgets/name_avatar_widget.dart';
 
 enum SortType { grouped, date }
 
@@ -201,7 +202,19 @@ class _CharacterTabState extends State<CharacterTab> {
                             character.avatarPath,
                           ),
                         )
-                      : const CircleAvatar(child: Icon(Icons.person)),
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: NameAvatarWidget(
+                            name:
+                                character is ManualCharacter && character.isSelf
+                                ? '你'
+                                : character.name,
+                            size: 40,
+                            isSelf:
+                                character is ManualCharacter &&
+                                character.isSelf,
+                          ),
+                        ),
                   title: Text(
                     character.name,
                     maxLines: 1,
@@ -297,7 +310,13 @@ class _CharacterTabState extends State<CharacterTab> {
                                   character.avatarPath,
                                 ),
                               )
-                            : const CircleAvatar(child: Icon(Icons.person)),
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: NameAvatarWidget(
+                                  name: character.name,
+                                  size: 40,
+                                ),
+                              ),
                         title: Text(
                           character.name,
                           maxLines: 1,
