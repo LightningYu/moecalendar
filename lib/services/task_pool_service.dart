@@ -111,20 +111,56 @@ class PoolTask {
   };
 
   /// 反序列化
+  ///
+  /// 加载时校验本地图片文件是否真实存在，若文件已丢失则清除对应路径，
+  /// 避免任务池误认为已下载完成而跳过重新下载。
   factory PoolTask.fromJson(Map<String, dynamic> json) {
     final phaseIdx = json['phase'] as int? ?? 0;
     final statusIdx = json['status'] as int? ?? 0;
+
+    String? gridLocalPath = json['gridLocalPath'] as String?;
+    String? largeLocalPath = json['largeLocalPath'] as String?;
+
+    // 校验文件实际存在，若文件已丢失则清除路径
+    if (gridLocalPath != null && !File(gridLocalPath).existsSync()) {
+      gridLocalPath = null;
+    }
+    if (largeLocalPath != null && !File(largeLocalPath).existsSync()) {
+      largeLocalPath = null;
+    }
+
+    // 若文件丢失导致路径被清除，状态也应当重置为 pending 重新下载
+    int effectiveStatus = statusIdx.clamp(0, TaskStatus.values.length - 1);
+    int effectivePhase = phaseIdx.clamp(0, TaskPhase.values.length - 1);
+
+    final originalStatus = TaskStatus.values[effectiveStatus];
+    final originalPhase = TaskPhase.values[effectivePhase];
+
+    if (originalStatus == TaskStatus.completed) {
+      final gridUrl = json['gridUrl'] as String?;
+      final largeUrl = json['largeUrl'] as String?;
+      final gridMissing = gridUrl != null && gridLocalPath == null;
+      final largeMissing = largeUrl != null && largeLocalPath == null;
+
+      if (gridMissing || largeMissing) {
+        // 文件丢失，降级回 pending 补下载
+        effectiveStatus = TaskStatus.pending.index;
+        effectivePhase = gridMissing
+            ? TaskPhase.downloadGrid.index
+            : TaskPhase.downloadLarge.index;
+      }
+    }
+
     return PoolTask(
       bangumiId: json['bangumiId'] as int,
       characterName: json['characterName'] as String? ?? '',
-      phase: TaskPhase.values[phaseIdx.clamp(0, TaskPhase.values.length - 1)],
-      status:
-          TaskStatus.values[statusIdx.clamp(0, TaskStatus.values.length - 1)],
+      phase: TaskPhase.values[effectivePhase],
+      status: TaskStatus.values[effectiveStatus],
       characterId: json['characterId'] as String?,
       gridUrl: json['gridUrl'] as String?,
       largeUrl: json['largeUrl'] as String?,
-      gridLocalPath: json['gridLocalPath'] as String?,
-      largeLocalPath: json['largeLocalPath'] as String?,
+      gridLocalPath: gridLocalPath,
+      largeLocalPath: largeLocalPath,
       hasBirthday: json['hasBirthday'] as bool?,
     );
   }
@@ -356,6 +392,23 @@ class TaskPoolService extends ChangeNotifier {
     }
   }
 
+  /// 计算 grid 图片的预期本地路径（不依赖任务池状态，可跨会话使用）
+  static String? expectedGridPath(int bangumiId, String? url) {
+    if (url == null) return null;
+    // 从 URL 取扩展名；若无扩展名则用 .jpg 兜底
+    final ext = path.extension(url);
+    final safExt = ext.isNotEmpty ? ext : '.jpg';
+    return PathManager().getImagePath('grid_${bangumiId}$safExt');
+  }
+
+  /// 计算 large 图片的预期本地路径
+  static String? expectedLargePath(int bangumiId, String? url) {
+    if (url == null) return null;
+    final ext = path.extension(url);
+    final safExt = ext.isNotEmpty ? ext : '.jpg';
+    return PathManager().getImagePath('large_${bangumiId}$safExt');
+  }
+
   /// 为已在库中的 Bangumi 角色提交图片下载任务（跳过详情拉取阶段）
   void submitImageDownload({
     required int bangumiId,
@@ -366,16 +419,42 @@ class TaskPoolService extends ChangeNotifier {
   }) {
     if (gridUrl == null && largeUrl == null) return;
 
+    // 先检查文件是否真实存在于磁盘，存在则直接返回（最可靠的去重逻辑）
+    final gridExpected = expectedGridPath(bangumiId, gridUrl);
+    final largeExpected = expectedLargePath(bangumiId, largeUrl);
+    final gridFileExists =
+        gridExpected != null && File(gridExpected).existsSync();
+    final largeFileExists =
+        largeExpected != null && File(largeExpected).existsSync();
+
+    // 需要的文件都已存在 → 直接更新任务池状态为完成，无需下载
+    if ((gridUrl == null || gridFileExists) &&
+        (largeUrl == null || largeFileExists)) {
+      // 确保任务池记录本地路径（方便 DB 同步）
+      final existing = _tasks[bangumiId];
+      if (existing != null) {
+        if (gridFileExists && existing.gridLocalPath == null) {
+          existing.gridLocalPath = gridExpected;
+        }
+        if (largeFileExists && existing.largeLocalPath == null) {
+          existing.largeLocalPath = largeExpected;
+        }
+        _saveTasks();
+      }
+      return; // 文件已存在，无需下载
+    }
+
     final existing = _tasks[bangumiId];
     if (existing != null &&
         existing.status == TaskStatus.completed &&
         existing.gridLocalPath != null &&
         (largeUrl == null || existing.largeLocalPath != null)) {
-      return; // 已完成无需重复
+      return; // 任务池记录已完成无需重复
     }
 
-    final needGrid = gridUrl != null;
-    final needLarge = largeUrl != null;
+    // 只需要下载尚缺的文件
+    final needGrid = gridUrl != null && !gridFileExists;
+    final needLarge = largeUrl != null && !largeFileExists;
 
     _tasks[bangumiId] = PoolTask(
       bangumiId: bangumiId,
@@ -583,8 +662,8 @@ class TaskPoolService extends ChangeNotifier {
 
     final localPath = await _downloadFile(
       task.gridUrl!,
-      task.bangumiId.toString(),
-      suffix: '_grid',
+      task.bangumiId,
+      'grid',
       onProgress: (received, total) {
         if (total > 0) {
           task.progress = received / total;
@@ -626,8 +705,8 @@ class TaskPoolService extends ChangeNotifier {
 
     final localPath = await _downloadFile(
       task.largeUrl!,
-      task.bangumiId.toString(),
-      suffix: '_large',
+      task.bangumiId,
+      'large',
       onProgress: (received, total) {
         if (total > 0) {
           task.progress = received / total;
@@ -651,16 +730,27 @@ class TaskPoolService extends ChangeNotifier {
   }
 
   /// 文件下载工具
+  ///
+  /// [bangumiId] 角色 ID，[type] 为 'grid' 或 'large'
+  /// 命名规则：`{type}_{bangumiId}{ext}`，可跨会话确定性查找
+  /// 下载前先检查文件是否已存在，存在则直接返回本地路径（避免重复下载）
   Future<String?> _downloadFile(
     String url,
-    String id, {
-    String suffix = '',
+    int bangumiId,
+    String type, {
     void Function(int received, int total)? onProgress,
   }) async {
     try {
       final ext = path.extension(url);
-      final fileName = 'avatar_$id$suffix$ext';
+      final safExt = ext.isNotEmpty ? ext : '.jpg';
+      final fileName = '${type}_$bangumiId$safExt';
       final savePath = PathManager().getImagePath(fileName);
+
+      // 文件已存在 → 跳过下载，直接返回本地路径
+      if (File(savePath).existsSync()) {
+        debugPrint('文件已存在，跳过下载: $fileName');
+        return savePath;
+      }
 
       await _dio.download(url, savePath, onReceiveProgress: onProgress);
       return savePath;

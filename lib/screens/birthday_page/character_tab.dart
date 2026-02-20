@@ -27,6 +27,9 @@ class _CharacterTabState extends State<CharacterTab> {
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
 
+  // 刷新图片缓存
+  bool _isRefreshing = false;
+
   @override
   void initState() {
     super.initState();
@@ -319,6 +322,35 @@ class _CharacterTabState extends State<CharacterTab> {
                               child: Text('按生日排序'),
                             ),
                           ],
+                    ),
+                    IconButton(
+                      icon: _isRefreshing
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.refresh),
+                      tooltip: '检查并补全图片缓存',
+                      onPressed: _isRefreshing
+                          ? null
+                          : () async {
+                              setState(() => _isRefreshing = true);
+                              final p = Provider.of<CharacterProvider>(
+                                context,
+                                listen: false,
+                              );
+                              await p.refreshImageCache();
+                              if (mounted) {
+                                setState(() => _isRefreshing = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('已检查图片缓存，缺失的已加入下载队列'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
                     ),
                     IconButton(
                       icon: const Icon(Icons.settings),

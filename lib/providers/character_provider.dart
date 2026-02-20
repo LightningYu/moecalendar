@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -126,24 +127,63 @@ class CharacterProvider extends ChangeNotifier {
     for (final c in _characters) {
       if (c is! BangumiCharacter) continue;
 
-      // 已有完成的任务就跳过
       final existing = _taskPool.getTask(c.bangumiId);
+
+      // 正在处理中 → 跳过
       if (existing != null &&
-          (existing.status == TaskStatus.completed ||
-              existing.status == TaskStatus.pending ||
+          (existing.status == TaskStatus.pending ||
               existing.status == TaskStatus.running)) {
         continue;
       }
 
-      // 有网络 URL 但缺少本地缓存 → 加入队列
-      final needsGrid =
+      // 判断 DB 里路径是否已落地本地（且文件真实存在）
+      final dbGridIsLocal =
           c.gridAvatarPath != null &&
-          c.gridAvatarPath!.startsWith('http') &&
-          _taskPool.getCachedGridPath(c.id) == null;
-      final needsLarge =
+          !c.gridAvatarPath!.startsWith('http') &&
+          File(c.gridAvatarPath!).existsSync();
+      final dbLargeIsLocal =
           c.largeAvatarPath != null &&
-          c.largeAvatarPath!.startsWith('http') &&
-          _taskPool.getCachedLargePath(c.id) == null;
+          !c.largeAvatarPath!.startsWith('http') &&
+          File(c.largeAvatarPath!).existsSync();
+
+      // 如果 DB 里两张图都已是本地且文件存在 → 无需操作
+      if (dbGridIsLocal && dbLargeIsLocal) continue;
+
+      // 判断任务池是否已有本地路径（已下载但未写回 DB，由 _syncTaskPoolPathsToDB 处理）
+      final taskGridOk =
+          existing?.gridLocalPath != null &&
+          File(existing!.gridLocalPath!).existsSync();
+      final taskLargeOk =
+          existing?.largeLocalPath != null &&
+          File(existing!.largeLocalPath!).existsSync();
+
+      // 预期本地路径已存在（可能是之前用同一 bangumiId 下载过）
+      final predictedGridPath = TaskPoolService.expectedGridPath(
+        c.bangumiId,
+        c.gridAvatarPath,
+      );
+      final predictedLargeExpected = TaskPoolService.expectedLargePath(
+        c.bangumiId,
+        c.largeAvatarPath,
+      );
+      final predictedGridOk =
+          predictedGridPath != null && File(predictedGridPath).existsSync();
+      final predictedLargeOk =
+          predictedLargeExpected != null &&
+          File(predictedLargeExpected).existsSync();
+
+      // 需要从网络下载的 URL
+      final gridOk = dbGridIsLocal || taskGridOk || predictedGridOk;
+      final largeOk = dbLargeIsLocal || taskLargeOk || predictedLargeOk;
+
+      final needsGrid =
+          !gridOk &&
+          c.gridAvatarPath != null &&
+          c.gridAvatarPath!.startsWith('http');
+      final needsLarge =
+          !largeOk &&
+          c.largeAvatarPath != null &&
+          c.largeAvatarPath!.startsWith('http');
 
       if (needsGrid || needsLarge) {
         _taskPool.submitImageDownload(
@@ -155,6 +195,14 @@ class CharacterProvider extends ChangeNotifier {
         );
       }
     }
+  }
+
+  /// 公开刷新：同步任务池路径到 DB，然后扫描缺图毛角色并补下载
+  ///
+  /// 适用于：手动刷新、导入后故障诊断等场景
+  Future<void> refreshImageCache() async {
+    await _syncTaskPoolPathsToDB();
+    _syncDownloads();
   }
 
   /// 添加单个在线 Bangumi 角色（先入库，图片由同步驱动）
@@ -329,23 +377,83 @@ class CharacterProvider extends ChangeNotifier {
     List<int> bangumiIdsOnly = const [],
   }) async {
     if (mode == 'replace') {
-      await _storageService.saveAll(imported);
+      // ── replace 模式 ──
+      // 1. 检查导入数据是否含 self；如果没有，保留本地的 self
+      final localSelf = selfCharacter;
+      final importedHasSelf = imported.any(
+        (c) => c is ManualCharacter && c.isSelf,
+      );
+
+      // 2. 建立当前库的 bangumiId → 角色映射，用于复用本地路径
+      final existingByBangumiId = <int, BangumiCharacter>{};
+      for (final c in _characters.whereType<BangumiCharacter>()) {
+        existingByBangumiId[c.bangumiId] = c;
+      }
+
+      // 3. 构建最终写入列表：相同 bangumiId 保留本地已下载的图片路径
+      final toSave = <Character>[];
+      for (final c in imported) {
+        if (c is BangumiCharacter) {
+          final prev = existingByBangumiId[c.bangumiId];
+          if (prev != null) {
+            toSave.add(
+              c.copyWith(
+                gridAvatarPath: _pickBestPath(
+                  prev.gridAvatarPath,
+                  c.gridAvatarPath,
+                ),
+                largeAvatarPath: _pickBestPath(
+                  prev.largeAvatarPath,
+                  c.largeAvatarPath,
+                ),
+                avatarPath: _pickBestPath(prev.avatarPath, c.avatarPath),
+                avatarColor: prev.avatarColor ?? c.avatarColor,
+              ),
+            );
+          } else {
+            toSave.add(c);
+          }
+        } else {
+          toSave.add(c);
+        }
+      }
+
+      // 4. 导入数据没有 self → 补回本地 self
+      if (!importedHasSelf && localSelf != null) {
+        toSave.add(localSelf);
+      }
+
+      await _storageService.saveAll(toSave);
       await _loadData();
       await _migrateAvatarColors();
+
+      // 5. 把任务池已有的本地路径同步回 DB
+      await _syncTaskPoolPathsToDB();
+
+      // 6. 扫描仍缺图的角色，提交补下载
       _syncDownloads();
-      // 将 bangumiId-only 的提交到任务池
+
+      // 7. bangumiId-only：已在库的由 _syncDownloads 处理，其余提交任务池
+      final existingBids = _characters
+          .whereType<BangumiCharacter>()
+          .map((c) => c.bangumiId)
+          .toSet();
+      int taskSubmitted = 0;
       for (final bid in bangumiIdsOnly) {
-        _taskPool.submit(bid);
+        if (!existingBids.contains(bid)) {
+          _taskPool.submit(bid);
+          taskSubmitted++;
+        }
       }
       return (
-        added: imported.length,
+        added: toSave.length,
         updated: 0,
-        total: imported.length,
-        taskSubmitted: bangumiIdsOnly.length,
+        total: toSave.length,
+        taskSubmitted: taskSubmitted,
       );
     }
 
-    // merge 模式：同名同日期去重
+    // ── merge 模式 ──
     final existing = await _storageService.getCharacters();
     final existingBangumiIds = existing
         .whereType<BangumiCharacter>()
@@ -362,6 +470,9 @@ class CharacterProvider extends ChangeNotifier {
     int updated = 0;
 
     for (final c in imported) {
+      // merge 模式：跳过 isSelf，保留本地的 self 不变
+      if (c is ManualCharacter && c.isSelf) continue;
+
       if (c is BangumiCharacter && existingBangumiIds.contains(c.bangumiId)) {
         continue; // bangumiId 已存在 → 跳过
       }
@@ -394,6 +505,10 @@ class CharacterProvider extends ChangeNotifier {
     await _storageService.saveAll(existing);
     await _loadData();
     await _migrateAvatarColors();
+
+    // 把任务池已有的本地路径同步回 DB
+    await _syncTaskPoolPathsToDB();
+
     _syncDownloads();
     return (
       added: added,
@@ -401,6 +516,50 @@ class CharacterProvider extends ChangeNotifier {
       total: existing.length,
       taskSubmitted: taskSubmitted,
     );
+  }
+
+  /// 将任务池中已下载的本地图片路径写回对应角色的 DB 记录
+  ///
+  /// 场景：导入时 DB 里路径是 HTTP URL（来自备份），
+  /// 而任务池已有完成的本地路径，将两者同步，避免重复下载。
+  Future<void> _syncTaskPoolPathsToDB() async {
+    bool changed = false;
+    for (int i = 0; i < _characters.length; i++) {
+      final c = _characters[i];
+      if (c is! BangumiCharacter) continue;
+
+      final task = _taskPool.getTask(c.bangumiId);
+      if (task == null) continue;
+
+      final gridNeedsUpdate =
+          task.gridLocalPath != null &&
+          (c.gridAvatarPath == null || c.gridAvatarPath!.startsWith('http'));
+      final largeNeedsUpdate =
+          task.largeLocalPath != null &&
+          (c.largeAvatarPath == null || c.largeAvatarPath!.startsWith('http'));
+
+      if (!gridNeedsUpdate && !largeNeedsUpdate) continue;
+
+      final updated = c.copyWith(
+        gridAvatarPath: gridNeedsUpdate ? task.gridLocalPath : c.gridAvatarPath,
+        largeAvatarPath: largeNeedsUpdate
+            ? task.largeLocalPath
+            : c.largeAvatarPath,
+        avatarPath: largeNeedsUpdate ? task.largeLocalPath : c.avatarPath,
+      );
+      _characters[i] = updated;
+      await _storageService.saveCharacter(updated);
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
+  /// 优先选取本地路径（不以 http 开头的视为本地路径）
+  String? _pickBestPath(String? localCandidate, String? fallback) {
+    if (localCandidate != null && !localCandidate.startsWith('http')) {
+      return localCandidate;
+    }
+    return fallback;
   }
 
   Future<void> _repairSelfFlag() async {
