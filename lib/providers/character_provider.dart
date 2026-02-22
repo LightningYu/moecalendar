@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,12 @@ class CharacterProvider extends ChangeNotifier {
   final StorageService _storageService = StorageService();
 
   List<Character> _characters = [];
+
+  /// 用于等待初始化完成的 Completer，防止写操作与 _loadData 发生竞态
+  final Completer<void> _initCompleter = Completer<void>();
+
+  /// 等待初始化完成的 Future
+  Future<void> get initialized => _initCompleter.future;
 
   UnmodifiableListView<Character> get characters =>
       UnmodifiableListView(_characters);
@@ -51,10 +58,12 @@ class CharacterProvider extends ChangeNotifier {
   Future<void> _init() async {
     await _loadData();
     await _migrateAvatarColors();
+    _initCompleter.complete();
   }
 
   /// 新增角色（内存优先，再写磁盘）
   Future<void> addCharacter(Character character) async {
+    await initialized;
     _characters.add(character);
     notifyListeners();
     await _storageService.saveAll(_characters);
@@ -62,6 +71,7 @@ class CharacterProvider extends ChangeNotifier {
 
   /// 更新角色
   Future<void> updateCharacter(Character character) async {
+    await initialized;
     final index = _characters.indexWhere((c) => c.id == character.id);
     if (index >= 0) {
       _characters[index] = character;
@@ -74,6 +84,7 @@ class CharacterProvider extends ChangeNotifier {
 
   /// 删除角色
   Future<void> deleteCharacter(String id) async {
+    await initialized;
     _characters.removeWhere((c) => c.id == id);
     notifyListeners();
     await _storageService.saveAll(_characters);
@@ -85,6 +96,8 @@ class CharacterProvider extends ChangeNotifier {
     required bool isLunar,
     String? displayName,
   }) async {
+    // 等待初始化完成，防止 _loadData 在写入后覆盖内存数据（首次 onboarding 竞态问题）
+    await initialized;
     final existing = selfCharacter;
     final ManualCharacter updated =
         existing?.copyWith(
