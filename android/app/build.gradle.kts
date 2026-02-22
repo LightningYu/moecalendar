@@ -60,6 +60,9 @@ buildTypes {
             isMinifyEnabled = true
             isShrinkResources = true
     }
+    debug{
+        applicationIdSuffix = ".debug"
+    }
 }
 }
 
