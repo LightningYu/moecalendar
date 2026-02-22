@@ -6,7 +6,6 @@ class AppRoutes {
   static const String onboarding = '/onboarding';
   static const String birthTab = '/birth';
   static const String characterTab = '/character';
-  static const String taskPoolTab = '/task_pool';
 
   // ============ 子路由（相对路径） ============
   static const String detail = 'detail';

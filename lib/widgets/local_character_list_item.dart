@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/character_model.dart';
 import '../utils/zodiac_utils.dart';
 import '../config/design_constants.dart';
-import 'character_avatar_widget.dart';
+import 'avatar_widget.dart';
 
 /// 本地已保存角色的列表项组件
 /// 用于 character_tab.dart 中展示已添加的角色
@@ -83,15 +83,12 @@ class LocalCharacterListItem extends StatelessWidget {
                 Checkbox(value: isSelected, onChanged: onCheckChanged),
                 const SizedBox(width: DesignConstants.spacingSm),
               ],
-              // 头像（含下载进度）
-              CharacterAvatarWidget(
-                imagePath: avatarPath,
-                name: character.name,
+              // 头像（统一使用 CachedNetworkImage）
+              NetworkAvatar(
+                imageUrl: avatarPath,
+                name: isSelf ? '你' : character.name,
                 size: DesignConstants.avatarSizeSm,
-                isSelf: isSelf,
-                isBangumi: isBangumi,
-                characterId: character.id,
-                avatarColor: character.avatarColor,
+                colorValue: character.avatarColor,
               ),
               const SizedBox(width: DesignConstants.spacingMd),
               // 信息区域

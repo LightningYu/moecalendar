@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -14,6 +15,9 @@ class StorageService {
 
   static const String _settingsFileName = 'settings.json';
   static const String _authFileName = 'auth.json';
+
+  /// 写入锁：保证 read-modify-write 操作的原子性，防止并发写入导致数据丢失
+  final _writeLock = _AsyncLock();
 
   Future<void> init() async {
     await PathManager().init();
@@ -37,6 +41,55 @@ class StorageService {
   }
 
   Future<void> saveAll(List<Character> characters) async {
+    return _writeLock.run(() async {
+      try {
+        final file = File(PathManager().dataFilePath);
+        final jsonList = characters.map((e) => e.toJson()).toList();
+        await file.writeAsString(jsonEncode(jsonList));
+      } catch (e) {
+        debugPrint('Error saving characters: $e');
+      }
+    });
+  }
+
+  Future<void> saveCharacter(Character character) async {
+    return _writeLock.run(() async {
+      final characters = await _readCharactersUnsafe();
+      final index = characters.indexWhere((c) => c.id == character.id);
+      if (index >= 0) {
+        characters[index] = character;
+      } else {
+        characters.add(character);
+      }
+      await _writeCharactersUnsafe(characters);
+    });
+  }
+
+  Future<void> deleteCharacter(String id) async {
+    return _writeLock.run(() async {
+      final characters = await _readCharactersUnsafe();
+      characters.removeWhere((c) => c.id == id);
+      await _writeCharactersUnsafe(characters);
+    });
+  }
+
+  /// 内部读取（不加锁，由调用者持有锁）
+  Future<List<Character>> _readCharactersUnsafe() async {
+    try {
+      final file = File(PathManager().dataFilePath);
+      if (!await file.exists()) return [];
+      final content = await file.readAsString();
+      if (content.isEmpty) return [];
+      final List<dynamic> jsonList = jsonDecode(content);
+      return jsonList.map((e) => Character.fromJson(e)).toList();
+    } catch (e) {
+      debugPrint('Error reading characters: $e');
+      return [];
+    }
+  }
+
+  /// 内部写入（不加锁，由调用者持有锁）
+  Future<void> _writeCharactersUnsafe(List<Character> characters) async {
     try {
       final file = File(PathManager().dataFilePath);
       final jsonList = characters.map((e) => e.toJson()).toList();
@@ -44,23 +97,6 @@ class StorageService {
     } catch (e) {
       debugPrint('Error saving characters: $e');
     }
-  }
-
-  Future<void> saveCharacter(Character character) async {
-    final characters = await getCharacters();
-    final index = characters.indexWhere((c) => c.id == character.id);
-    if (index >= 0) {
-      characters[index] = character;
-    } else {
-      characters.add(character);
-    }
-    await saveAll(characters);
-  }
-
-  Future<void> deleteCharacter(String id) async {
-    final characters = await getCharacters();
-    characters.removeWhere((c) => c.id == id);
-    await saveAll(characters);
   }
 
   // ============ App Settings ============
@@ -130,5 +166,27 @@ class StorageService {
     } catch (e) {
       debugPrint('Error clearing auth data: $e');
     }
+  }
+}
+
+/// 简易异步互斥锁，保证同一时刻只有一个异步操作在执行
+class _AsyncLock {
+  Future<void>? _last;
+
+  Future<T> run<T>(Future<T> Function() task) {
+    final prev = _last;
+    final completer = Completer<void>();
+    _last = completer.future;
+
+    return Future(() async {
+      if (prev != null) {
+        await prev;
+      }
+      try {
+        return await task();
+      } finally {
+        completer.complete();
+      }
+    });
   }
 }

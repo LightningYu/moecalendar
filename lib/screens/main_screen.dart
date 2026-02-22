@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import '../providers/character_provider.dart';
 import '../services/import_intent_service.dart';
 import '../services/data_sync_service.dart';
 import 'settings_page/data_sync_screen.dart';
@@ -65,37 +63,16 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CharacterProvider>(
-      builder: (context, provider, child) {
-        final taskPool = provider.taskPoolService;
-        final activeCount = taskPool.activeTaskCount;
-
-        return Scaffold(
-          body: widget.navigationShell,
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: widget.navigationShell.currentIndex,
-            onTap: _goBranch,
-            items: [
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.cake),
-                label: '生日',
-              ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.person),
-                label: '人物',
-              ),
-              BottomNavigationBarItem(
-                icon: Badge(
-                  isLabelVisible: activeCount > 0,
-                  label: Text('$activeCount'),
-                  child: const Icon(Icons.cloud_download),
-                ),
-                label: '下载池',
-              ),
-            ],
-          ),
-        );
-      },
+    return Scaffold(
+      body: widget.navigationShell,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: widget.navigationShell.currentIndex,
+        onTap: _goBranch,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.cake), label: '生日'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: '人物'),
+        ],
+      ),
     );
   }
 }

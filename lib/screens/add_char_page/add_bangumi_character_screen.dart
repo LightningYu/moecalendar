@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../bangumi/bangumi.dart';
 import '../../config/routes/app_routes.dart';
-import '../../providers/character_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/bangumi_selection_mixin.dart';
 import '../../widgets/bangumi_character_list_item.dart';
 import '../../widgets/bangumi_subject_list_item.dart';
 import '../char_page/bangumi_anime_list_screen.dart';
@@ -25,7 +25,8 @@ enum _AddBangumiView { search, collections }
 
 enum _SearchType { character, subject }
 
-class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
+class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen>
+    with BangumiSelectionMixin {
   final TextEditingController _searchController = TextEditingController();
   final BangumiService _bangumiService = BangumiService();
   final ScrollController _scrollController = ScrollController();
@@ -43,9 +44,8 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
   _AddBangumiView _activeView = _AddBangumiView.search;
   _SearchType _searchType = _SearchType.character;
 
-  // 多选模式
-  bool _isSelectionMode = false;
-  final Set<int> _selectedIds = {};
+  @override
+  List<BangumiCharacterDto> get selectableCharacters => _searchResults;
 
   @override
   void initState() {
@@ -161,62 +161,6 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
     }
   }
 
-  // --- Add ---
-
-  // 批量添加选中的角色（非阻塞，立即返回）
-  void _addSelectedCharacters() {
-    if (_selectedIds.isEmpty) return;
-
-    final provider = Provider.of<CharacterProvider>(context, listen: false);
-
-    final selectedList = _searchResults
-        .where((c) => _selectedIds.contains(c.id))
-        .toList();
-
-    final count = selectedList.length;
-
-    // 非阻塞：后台异步获取详情并入库
-    provider.addBangumiCharactersAsync(selectedList);
-
-    setState(() {
-      _selectedIds.clear();
-      _isSelectionMode = false;
-    });
-
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('已创建 $count 个添加任务，将在后台处理')));
-    }
-  }
-
-  void _toggleSelection(int id) {
-    setState(() {
-      if (_selectedIds.contains(id)) {
-        _selectedIds.remove(id);
-        if (_selectedIds.isEmpty) {
-          _isSelectionMode = false;
-        }
-      } else {
-        _selectedIds.add(id);
-      }
-    });
-  }
-
-  void _enterSelectionMode(int id) {
-    setState(() {
-      _isSelectionMode = true;
-      _selectedIds.add(id);
-    });
-  }
-
-  void _exitSelectionMode() {
-    setState(() {
-      _isSelectionMode = false;
-      _selectedIds.clear();
-    });
-  }
-
   // --- UI Components ---
 
   Widget _buildSearchList() {
@@ -245,14 +189,13 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
         }
 
         final item = _searchResults[index];
-        final isSelected = _selectedIds.contains(item.id);
+        final isSelected = selectedIds.contains(item.id);
 
         return BangumiCharacterListItem(
           character: item,
           isSelected: isSelected,
-          isSelectionMode: _isSelectionMode,
+          isSelectionMode: isSelectionMode,
           onTap: () {
-            // 点击进入详情页
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -261,11 +204,8 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
               ),
             );
           },
-          onLongPress: () {
-            // 长按进入多选模式
-            _enterSelectionMode(item.id);
-          },
-          onCheckChanged: (val) => _toggleSelection(item.id),
+          onLongPress: () => enterSelectionMode(item.id),
+          onCheckChanged: (val) => toggleSelection(item.id),
         );
       },
     );
@@ -569,32 +509,32 @@ class _AddBangumiCharacterScreenState extends State<AddBangumiCharacterScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isSelectionMode ? '已选择 ${_selectedIds.length} 个' : '添加 Bangumi 角色',
+          isSelectionMode ? '已选择 ${selectedIds.length} 个' : '添加 Bangumi 角色',
         ),
-        leading: _isSelectionMode
+        leading: isSelectionMode
             ? IconButton(
                 icon: const Icon(Icons.close),
-                onPressed: _exitSelectionMode,
+                onPressed: exitSelectionMode,
               )
             : null,
         actions: [
-          if (_isSelectionMode)
+          if (isSelectionMode)
             TextButton(
-              onPressed: _selectedIds.isEmpty ? null : _addSelectedCharacters,
+              onPressed: selectedIds.isEmpty ? null : addSelectedCharacters,
               child: const Text('添加'),
             ),
         ],
       ),
-      floatingActionButton: _isSelectionMode && _selectedIds.isNotEmpty
+      floatingActionButton: isSelectionMode && selectedIds.isNotEmpty
           ? FloatingActionButton.extended(
-              onPressed: _addSelectedCharacters,
+              onPressed: addSelectedCharacters,
               icon: const Icon(Icons.add),
-              label: Text('添加 ${_selectedIds.length} 个'),
+              label: Text('添加 ${selectedIds.length} 个'),
             )
           : null,
       body: Column(
         children: [
-          if (!_isSelectionMode) _buildViewSwitcher(),
+          if (!isSelectionMode) _buildViewSwitcher(),
           Expanded(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),

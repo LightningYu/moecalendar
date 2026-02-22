@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show Platform;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/character_model.dart';
 import '../../providers/character_provider.dart';
 import '../../bangumi/bangumi.dart';
+import '../../config/design_constants.dart';
 import '../../services/calendar_service.dart';
 import '../../widgets/name_avatar_widget.dart';
 
@@ -272,12 +274,6 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     }
   }
 
-  ImageProvider? _getImageProvider(String? urlOrPath) {
-    if (urlOrPath == null) return null;
-    if (urlOrPath.startsWith('http')) return NetworkImage(urlOrPath);
-    return FileImage(File(urlOrPath));
-  }
-
   String? _getDetailAvatarUrl() {
     if (isLocalMode && _localCharacter is BangumiCharacter) {
       final bc = _localCharacter as BangumiCharacter;
@@ -372,17 +368,18 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
 
   Widget _buildHeroImage(ThemeData theme) {
     final imageUrl = _getDetailAvatarUrl();
-    final provider = _getImageProvider(imageUrl);
+    final hasUrl = imageUrl != null && imageUrl.isNotEmpty;
 
     return Container(
       constraints: const BoxConstraints(maxHeight: 400),
       color: theme.colorScheme.surfaceContainerHighest,
-      child: provider != null
-          ? Image(
-              image: provider,
+      child: hasUrl
+          ? CachedNetworkImage(
+              imageUrl: imageUrl,
               fit: BoxFit.contain,
               width: double.infinity,
-              errorBuilder: (_, __, ___) => _buildPlaceholder(theme),
+              placeholder: (_, __) => _buildPlaceholder(theme),
+              errorWidget: (_, __, ___) => _buildPlaceholder(theme),
             )
           : _buildPlaceholder(theme),
     );
@@ -404,7 +401,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
 
   Widget _buildNameSection(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(DesignConstants.spacing),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -415,7 +412,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
             ),
           ),
           if (subName != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: DesignConstants.spacingXs),
             Text(
               subName!,
               style: theme.textTheme.titleSmall?.copyWith(
@@ -488,7 +485,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     if (chips.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: DesignConstants.spacing),
       child: Wrap(spacing: 8, runSpacing: 8, children: chips),
     );
   }
@@ -497,7 +494,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     if (!hasBirthday) return const SizedBox.shrink();
 
     return Card(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(DesignConstants.spacing),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: theme.colorScheme.primaryContainer,
@@ -511,14 +508,17 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
 
   Widget _buildBasicInfoCard(ThemeData theme) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.spacing,
+        vertical: DesignConstants.spacingSm,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(DesignConstants.spacing),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('基本信息', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: DesignConstants.spacingMd),
             _buildInfoRow(theme, '来源', isBangumi ? 'Bangumi' : '手动添加'),
             if (bangumiId != null)
               _buildInfoRow(theme, 'Bangumi ID', '$bangumiId'),
@@ -534,14 +534,17 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     if (summary == null || summary.isEmpty) return const SizedBox.shrink();
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.spacing,
+        vertical: DesignConstants.spacingSm,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(DesignConstants.spacing),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('简介', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: DesignConstants.spacingMd),
             SelectableText(
               summary,
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
@@ -559,14 +562,17 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     }
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.spacing,
+        vertical: DesignConstants.spacingSm,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(DesignConstants.spacing),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('详细信息', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: DesignConstants.spacingMd),
             ...infobox.map((item) {
               if (item is! Map || item['key'] == null) {
                 return const SizedBox.shrink();
@@ -624,14 +630,17 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     final collects = stat['collects'] ?? 0;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.spacing,
+        vertical: DesignConstants.spacingSm,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(DesignConstants.spacing),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('统计', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: DesignConstants.spacingMd),
             Row(
               children: [
                 Expanded(
@@ -668,7 +677,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(icon, size: 20, color: theme.hintColor),
-        const SizedBox(width: 8),
+        const SizedBox(width: DesignConstants.spacingSm),
         Column(
           children: [
             Text(
@@ -691,14 +700,17 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
 
   Widget _buildRefreshCard(ThemeData theme) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.spacing,
+        vertical: DesignConstants.spacingSm,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(DesignConstants.spacing),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('数据管理', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: DesignConstants.spacingMd),
             FilledButton.tonalIcon(
               onPressed: _isRefreshing ? null : _refreshLocalCharacter,
               icon: _isRefreshing
@@ -710,7 +722,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
                   : const Icon(Icons.refresh),
               label: Text(_isRefreshing ? '刷新中...' : '从 Bangumi 刷新数据'),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: DesignConstants.spacingSm),
             Text(
               '重新从 Bangumi API 获取最新的角色信息和图片',
               style: theme.textTheme.bodySmall?.copyWith(
@@ -727,14 +739,17 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     if (originalData.isEmpty) return const SizedBox.shrink();
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.spacing,
+        vertical: DesignConstants.spacingSm,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(DesignConstants.spacing),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('原始数据', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: DesignConstants.spacingSm),
             FilledButton.tonalIcon(
               onPressed: () => setState(() => _showRawData = !_showRawData),
               icon: Icon(_showRawData ? Icons.expand_less : Icons.data_object),
@@ -748,11 +763,13 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
               firstChild: const SizedBox.shrink(),
               secondChild: Container(
                 width: double.infinity,
-                margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(top: DesignConstants.spacingMd),
+                padding: const EdgeInsets.all(DesignConstants.cardPadding),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(
+                    DesignConstants.cardRadius,
+                  ),
                 ),
                 child: SelectableText(
                   const JsonEncoder.withIndent('  ').convert(originalData),
@@ -768,7 +785,7 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
 
   Widget _buildInfoRow(ThemeData theme, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: DesignConstants.spacingXs),
       child: Row(
         children: [
           SizedBox(

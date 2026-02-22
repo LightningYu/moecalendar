@@ -93,7 +93,7 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
             Icon(
               Icons.cake_outlined,
               size: 64,
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.primary.withAlpha(128),
             ),
             const SizedBox(height: DesignConstants.spacing),
             const Text('请设置出生年份以查看人生进度'),
@@ -198,10 +198,10 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
 
     return Card(
       elevation: 0,
-      color: colorScheme.primaryContainer.withOpacity(0.3),
+      color: colorScheme.primaryContainer.withAlpha(77),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(DesignConstants.radiusLg),
-        side: BorderSide(color: colorScheme.primary.withOpacity(0.1)),
+        side: BorderSide(color: colorScheme.primary.withAlpha(26)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(DesignConstants.spacingLg),
@@ -249,16 +249,16 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
     return Container(
       padding: const EdgeInsets.all(DesignConstants.spacing),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceVariant.withOpacity(0.3),
+        color: colorScheme.surfaceVariant.withAlpha(77),
         borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+        border: Border.all(color: colorScheme.outlineVariant.withAlpha(128)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(DesignConstants.spacingXs),
             decoration: BoxDecoration(
-              color: colorScheme.primary.withOpacity(0.1),
+              color: colorScheme.primary.withAlpha(26),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, size: 20, color: colorScheme.primary),

@@ -176,9 +176,6 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
         if (result.updated > 0) parts.add('更新 ${result.updated} 个');
         if (parts.isEmpty) parts.add('无新数据');
       }
-      if (result.taskSubmitted > 0) {
-        parts.add('${result.taskSubmitted} 个 Bangumi 角色将在下载池中处理');
-      }
 
       ScaffoldMessenger.of(
         context,

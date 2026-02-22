@@ -6,7 +6,6 @@ import '../screens/main_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/birthday_page/birthday_tab.dart';
 import '../screens/birthday_page/character_tab.dart';
-import '../screens/birthday_tab/task_pool_tab.dart';
 import '../screens/birthday_page/birthday_grid_screen.dart';
 import '../screens/birthday_page/birthday_detail_screen.dart';
 import '../screens/char_page/character_detail_screen.dart';
@@ -184,14 +183,6 @@ final router = GoRouter(
                   },
                 ),
               ],
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: AppRoutes.taskPoolTab,
-              builder: (context, state) => const TaskPoolTab(),
             ),
           ],
         ),

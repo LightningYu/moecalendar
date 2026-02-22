@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../bangumi/bangumi.dart';
 import '../config/design_constants.dart';
-import 'name_avatar_widget.dart';
+import 'avatar_widget.dart';
 
 /// 全局缓存：角色ID -> 完整数据
 /// 避免同一角色重复请求
@@ -128,27 +128,10 @@ class _BangumiCharacterListItemState extends State<BangumiCharacterListItem> {
                 const SizedBox(width: DesignConstants.spacingSm),
               ],
               // 头像
-              ClipRRect(
-                borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
-                child: Container(
-                  width: DesignConstants.avatarSizeMd,
-                  height: DesignConstants.avatarSizeMd,
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  child: avatarUrl != null
-                      ? Image.network(
-                          avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              NameAvatarWidget(
-                                name: character.displayName,
-                                size: DesignConstants.avatarSizeMd,
-                              ),
-                        )
-                      : NameAvatarWidget(
-                          name: character.displayName,
-                          size: DesignConstants.avatarSizeMd,
-                        ),
-                ),
+              NetworkAvatar(
+                imageUrl: avatarUrl,
+                name: character.displayName,
+                size: DesignConstants.avatarSizeMd,
               ),
               const SizedBox(width: DesignConstants.spacingMd),
               // 信息区域

@@ -1,11 +1,13 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/character_model.dart';
 import '../../utils/zodiac_utils.dart';
+import '../../config/app_strings.dart';
 import '../../config/design_constants.dart';
+import '../../widgets/celebration/confetti.dart';
+import '../../widgets/celebration/danmaku.dart';
 
 class CongratulationCharacterScreen extends StatefulWidget {
   final List<Character> characters;
@@ -30,19 +32,6 @@ class _CongratulationCharacterScreenState
   late AnimationController _glowController;
   final List<DanmakuItem> _danmakuList = [];
   final List<ConfettiItem> _particles = [];
-  final Random _random = Random();
-
-  final List<String> _birthdayGreetings = [
-    'Happy Birthday',
-    '生日快乐',
-    'お誕生日おめでとう',
-    '생일 축하합니다',
-    'Joyeux Anniversaire',
-    'Alles Gute zum Geburtstag',
-    'Feliz Cumpleaños',
-    'С Днем Рождения',
-    'Buon Compleanno',
-  ];
 
   @override
   void initState() {
@@ -68,39 +57,19 @@ class _CongratulationCharacterScreenState
       if (!mounted) return;
       if (!_isPhase1) {
         setState(() {
-          _updateDanmaku();
-          _updateParticles();
+          final item = DanmakuGenerator.tryGenerate(
+            greetings: AppStrings.birthdayGreetings,
+            avoidYStart: 0.35,
+            avoidYEnd: 0.65,
+          );
+          if (item != null) _danmakuList.add(item);
+          DanmakuGenerator.updateAll(_danmakuList);
+          ConfettiGenerator.updateAll(_particles);
         });
       }
     });
 
-    // 预生成五彩纸屑
-    for (int i = 0; i < 80; i++) {
-      _particles.add(_generateConfetti());
-    }
-  }
-
-  ConfettiItem _generateConfetti() {
-    return ConfettiItem(
-      x: _random.nextDouble(),
-      y: _random.nextDouble() * 1.5 - 0.5,
-      speedY: 0.003 + _random.nextDouble() * 0.005,
-      speedX: -0.001 + _random.nextDouble() * 0.002,
-      rotation: _random.nextDouble() * pi * 2,
-      rotationSpeed: -0.1 + _random.nextDouble() * 0.2,
-      color: [
-        Colors.redAccent,
-        Colors.orangeAccent,
-        Colors.yellowAccent,
-        Colors.greenAccent,
-        Colors.blueAccent,
-        Colors.pinkAccent,
-        Colors.purpleAccent,
-        const Color(0xFFFFD700),
-      ][_random.nextInt(8)],
-      width: 6 + _random.nextDouble() * 10,
-      height: 4 + _random.nextDouble() * 6,
-    );
+    _particles.addAll(ConfettiGenerator.generateBatch(80));
   }
 
   void _checkPhase() {
@@ -142,52 +111,6 @@ class _CongratulationCharacterScreenState
         });
       }
     });
-  }
-
-  void _updateDanmaku() {
-    // 降低弹幕密度 (8% 概率) 并避开中间，降低透明度
-    if (_random.nextInt(100) < 8) {
-      // 避开 0.35 - 0.65 的垂直区域 (头像和文字区)
-      double itemY = _random.nextDouble();
-      if (itemY > 0.35 && itemY < 0.65) {
-        itemY = itemY < 0.5 ? 0.25 : 0.75;
-      }
-
-      _danmakuList.add(
-        DanmakuItem(
-          text: _birthdayGreetings[_random.nextInt(_birthdayGreetings.length)],
-          x: 1.2,
-          y: 0.1 + itemY * 0.8,
-          speed: 0.003 + _random.nextDouble() * 0.005,
-          opacity: 0.3 + _random.nextDouble() * 0.3, // 显著降低透明度
-          color: [
-            Colors.white,
-            Colors.pink.shade100,
-            Colors.yellow.shade100,
-            Colors.cyan.shade100,
-            const Color(0xFFFFD700),
-          ][_random.nextInt(5)],
-          fontSize: 22 + _random.nextDouble() * 18,
-        ),
-      );
-    }
-
-    for (var item in _danmakuList) {
-      item.x -= item.speed;
-    }
-    _danmakuList.removeWhere((item) => item.x < -0.8);
-  }
-
-  void _updateParticles() {
-    for (var p in _particles) {
-      p.y += p.speedY;
-      p.x += p.speedX;
-      p.rotation += p.rotationSpeed;
-      if (p.y > 1.1) {
-        p.y = -0.1;
-        p.x = _random.nextDouble();
-      }
-    }
   }
 
   @override
@@ -343,7 +266,7 @@ class _CongratulationCharacterScreenState
               color: Colors.white10,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.orangeAccent.withOpacity(0.3),
+                  color: Colors.orangeAccent.withAlpha(77),
                   blurRadius: 60,
                   spreadRadius: 20,
                 ),
@@ -400,94 +323,4 @@ class _CongratulationCharacterScreenState
       ),
     );
   }
-}
-
-class DanmakuItem {
-  String text;
-  double x, y, speed, opacity;
-  Color color;
-  double fontSize;
-
-  DanmakuItem({
-    required this.text,
-    required this.x,
-    required this.y,
-    required this.speed,
-    required this.opacity,
-    required this.color,
-    required this.fontSize,
-  });
-}
-
-class ConfettiItem {
-  double x, y, speedY, speedX, rotation, rotationSpeed, width, height;
-  Color color;
-
-  ConfettiItem({
-    required this.x,
-    required this.y,
-    required this.speedY,
-    required this.speedX,
-    required this.rotation,
-    required this.rotationSpeed,
-    required this.color,
-    required this.width,
-    required this.height,
-  });
-}
-
-class DanmakuPainter extends CustomPainter {
-  final List<DanmakuItem> items;
-  DanmakuPainter(this.items);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (var item in items) {
-      final textSpan = TextSpan(
-        text: item.text,
-        style: TextStyle(
-          color: item.color.withOpacity(item.opacity),
-          fontSize: item.fontSize,
-          fontWeight: FontWeight.bold,
-          shadows: const [Shadow(blurRadius: 4, color: Colors.black26)],
-        ),
-      );
-      final textPainter = TextPainter(
-        text: textSpan,
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(item.x * size.width, item.y * size.height),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class ConfettiPainter extends CustomPainter {
-  final List<ConfettiItem> particles;
-  ConfettiPainter(this.particles);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint();
-    for (var p in particles) {
-      paint.color = p.color;
-      canvas.save();
-      canvas.translate(p.x * size.width, p.y * size.height);
-      canvas.rotate(p.rotation);
-      canvas.drawRect(
-        Rect.fromCenter(center: Offset.zero, width: p.width, height: p.height),
-        paint,
-      );
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moecalendar/config/app_info.dart';
 import 'package:provider/provider.dart';
 import '../../config/routes/app_routes.dart';
+import '../../providers/character_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../config/design_constants.dart';
 
@@ -46,6 +48,14 @@ class SettingsScreen extends StatelessWidget {
               ),
               const Divider(),
               ListTile(
+                leading: const Icon(Icons.cleaning_services_outlined),
+                title: const Text('清理图片缓存'),
+                subtitle: const Text('清除网络图片的本地缓存'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _showCacheCleanupDialog(context),
+              ),
+              const Divider(),
+              ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('关于应用'),
                 subtitle: const Text('版本信息、开发者信息'),
@@ -81,6 +91,121 @@ class SettingsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void _showCacheCleanupDialog(BuildContext context) {
+    bool keepAddedCharacterImages = true;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: const Text('清理图片缓存'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '将清除 CachedNetworkImage 下载的所有图片缓存，'
+                    '下次浏览时会重新从网络加载。',
+                  ),
+                  const SizedBox(height: DesignConstants.spacing),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('保留已添加角色的图片'),
+                    subtitle: const Text('跳过已添加的 Bangumi 角色头像'),
+                    value: keepAddedCharacterImages,
+                    onChanged: (v) {
+                      setDialogState(() {
+                        keepAddedCharacterImages = v ?? true;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(dialogContext);
+                    await _performCacheCleanup(
+                      context,
+                      keepAddedCharacterImages,
+                    );
+                  },
+                  child: const Text('清理'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _performCacheCleanup(
+    BuildContext context,
+    bool keepAddedCharacterImages,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      if (!keepAddedCharacterImages) {
+        // 全部清除
+        await DefaultCacheManager().emptyCache();
+        messenger.showSnackBar(const SnackBar(content: Text('图片缓存已全部清除')));
+      } else {
+        // 收集已添加角色的图片 URL，预加载后再清除其余缓存
+        final provider = Provider.of<CharacterProvider>(context, listen: false);
+        final urlsToKeep = <String>{};
+        for (final c in provider.bangumiCharacters) {
+          if (c.gridAvatarPath != null &&
+              c.gridAvatarPath!.startsWith('http')) {
+            urlsToKeep.add(c.gridAvatarPath!);
+          }
+          if (c.largeAvatarPath != null &&
+              c.largeAvatarPath!.startsWith('http')) {
+            urlsToKeep.add(c.largeAvatarPath!);
+          }
+          if (c.avatarPath != null && c.avatarPath!.startsWith('http')) {
+            urlsToKeep.add(c.avatarPath!);
+          }
+        }
+
+        // 先获取已添加角色图片的缓存文件信息
+        final cacheManager = DefaultCacheManager();
+        final cachedFiles = <FileInfo>[];
+        for (final url in urlsToKeep) {
+          final info = await cacheManager.getFileFromCache(url);
+          if (info != null) {
+            cachedFiles.add(info);
+          }
+        }
+
+        // 清除全部缓存
+        await cacheManager.emptyCache();
+
+        // 重新下载已添加角色的图片缓存
+        for (final url in urlsToKeep) {
+          try {
+            await cacheManager.downloadFile(url);
+          } catch (_) {
+            // 忽略单张图片下载失败
+          }
+        }
+
+        messenger.showSnackBar(
+          SnackBar(content: Text('缓存已清理，保留了 ${urlsToKeep.length} 张已添加角色的图片')),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('清理缓存失败: $e')));
+    }
   }
 
   Widget _buildThemeModeSection(

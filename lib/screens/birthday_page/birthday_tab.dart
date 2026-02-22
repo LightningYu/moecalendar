@@ -144,7 +144,9 @@ class _BirthdayTabState extends State<BirthdayTab> {
       SnackBar(
         content: Text('即将迎来 $names 的生日！'),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DesignConstants.cardRadius),
+        ),
         action: SnackBarAction(
           label: '查看',
           onPressed: () {
@@ -179,11 +181,9 @@ class _BirthdayTabState extends State<BirthdayTab> {
                   Icon(
                     Icons.cake_outlined,
                     size: 80,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withOpacity(0.2),
+                    color: Theme.of(context).colorScheme.primary.withAlpha(51),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: DesignConstants.spacing),
                   const Text('还没有添加人物哦，去右侧添加吧'),
                 ],
               ),
@@ -259,7 +259,7 @@ class _BirthdayTabState extends State<BirthdayTab> {
                 icon: const Icon(Icons.settings_outlined),
                 onPressed: () => context.push(AppRoutes.settings),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: DesignConstants.spacingSm),
             ],
           ),
           body: Column(
@@ -267,7 +267,9 @@ class _BirthdayTabState extends State<BirthdayTab> {
               // Page Indicator
               if (pageCount > 1)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: DesignConstants.spacingSm,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(pageCount, (index) {
@@ -279,7 +281,7 @@ class _BirthdayTabState extends State<BirthdayTab> {
                         decoration: BoxDecoration(
                           color: _currentPageIndex == index
                               ? colorScheme.primary
-                              : colorScheme.primary.withOpacity(0.2),
+                              : colorScheme.primary.withAlpha(51),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       );
@@ -357,7 +359,10 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
     );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignConstants.spacing,
+        vertical: DesignConstants.spacingLg,
+      ),
       child: Column(
         children: [
           // 角色姓名组 - 更加显眼
@@ -372,11 +377,9 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer.withOpacity(0.3),
+                  color: colorScheme.primaryContainer.withAlpha(77),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: colorScheme.primary.withOpacity(0.1),
-                  ),
+                  border: Border.all(color: colorScheme.primary.withAlpha(26)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -386,7 +389,7 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
                       size: 16,
                       color: Colors.orangeAccent,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: DesignConstants.spacingSm),
                     Text(
                       c.name,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -399,24 +402,24 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
               );
             }).toList(),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: DesignConstants.spacingXl),
 
           // 核心展示卡片 - 调整为全宽且内容更紧凑防止溢出
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(DesignConstants.spacingLg),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  colorScheme.surfaceVariant.withOpacity(0.5),
-                  colorScheme.surfaceVariant.withOpacity(0.2),
+                  colorScheme.surfaceVariant.withAlpha(128),
+                  colorScheme.surfaceVariant.withAlpha(51),
                 ],
               ),
               borderRadius: BorderRadius.circular(DesignConstants.radiusXl),
               border: Border.all(
-                color: colorScheme.outlineVariant.withOpacity(0.3),
+                color: colorScheme.outlineVariant.withAlpha(77),
               ),
             ),
             child: Column(
@@ -437,7 +440,7 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
                       letterSpacing: 2,
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: DesignConstants.spacingXl),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
@@ -451,7 +454,9 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         backgroundColor: Colors.pinkAccent,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(
+                            DesignConstants.radiusLg,
+                          ),
                         ),
                       ),
                       icon: const Icon(Icons.auto_awesome),
@@ -468,10 +473,10 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 4,
-                      color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                      color: colorScheme.onSurfaceVariant.withAlpha(153),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: DesignConstants.spacingXl),
                   _buildCountdownTimer(context),
                 ],
               ],
@@ -481,15 +486,15 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
           const SizedBox(height: 48),
           Icon(
             Icons.favorite,
-            color: Colors.pinkAccent.withOpacity(0.3),
+            color: Colors.pinkAccent.withAlpha(77),
             size: 24,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: DesignConstants.spacingMd),
           Text(
             '每一个生日都值得被温柔以待',
             style: TextStyle(
               fontSize: 14,
-              color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+              color: colorScheme.onSurfaceVariant.withAlpha(128),
               fontStyle: FontStyle.italic,
               letterSpacing: 1,
             ),
@@ -521,19 +526,22 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
             _buildTimeBox(context, seconds.toString().padLeft(2, '0'), 'SECS'),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: DesignConstants.spacingLg),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.symmetric(
+            horizontal: DesignConstants.spacing,
+            vertical: DesignConstants.spacingXs,
+          ),
           decoration: BoxDecoration(
-            color: colorScheme.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+            color: colorScheme.primary.withAlpha(26),
+            borderRadius: BorderRadius.circular(DesignConstants.cardRadius),
           ),
           child: Text(
             '.${milliseconds.toString().padLeft(3, '0')}',
             style: TextStyle(
               fontSize: 20,
               fontFamily: 'monospace',
-              color: colorScheme.primary.withOpacity(0.6),
+              color: colorScheme.primary.withAlpha(153),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -551,11 +559,11 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
           height: 70,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: colorScheme.primaryContainer.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(16),
+            color: colorScheme.primaryContainer.withAlpha(204),
+            borderRadius: BorderRadius.circular(DesignConstants.radiusLg),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withOpacity(0.1),
+                color: colorScheme.primary.withAlpha(26),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -571,7 +579,7 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: DesignConstants.spacingSm),
         Text(
           label,
           style: TextStyle(
