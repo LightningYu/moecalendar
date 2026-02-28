@@ -249,7 +249,7 @@ class _SelfBirthdayCardState extends State<SelfBirthdayCard> {
     return Container(
       padding: const EdgeInsets.all(DesignConstants.spacing),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceVariant.withAlpha(77),
+        color: colorScheme.surfaceContainerHighest.withAlpha(77),
         borderRadius: BorderRadius.circular(DesignConstants.radiusMd),
         border: Border.all(color: colorScheme.outlineVariant.withAlpha(128)),
       ),

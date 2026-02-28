@@ -413,8 +413,8 @@ class _BirthdayCountdownPageState extends State<BirthdayCountdownPage> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  colorScheme.surfaceVariant.withAlpha(128),
-                  colorScheme.surfaceVariant.withAlpha(51),
+                  colorScheme.surfaceContainerHighest .withAlpha(128),
+                  colorScheme.surfaceContainerHighest.withAlpha(51),
                 ],
               ),
               borderRadius: BorderRadius.circular(DesignConstants.radiusXl),

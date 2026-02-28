@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:lunar/lunar.dart';
 import '../../models/character_model.dart';
 import '../../providers/character_provider.dart';
 import '../../bangumi/bangumi.dart';
@@ -247,6 +248,151 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
     }
   }
 
+  /// 弹窗编辑手动创建的角色名称和生日
+  Future<void> _editManualCharacter() async {
+    if (!isLocalMode || _localCharacter is! ManualCharacter || isSelf) return;
+
+    final mc = _localCharacter as ManualCharacter;
+    final nameController = TextEditingController(text: mc.name);
+    DateTime selectedDate = DateTime(
+      mc.birthYear ?? DateTime.now().year,
+      mc.birthMonth,
+      mc.birthDay,
+    );
+    bool hasYear = mc.birthYear != null;
+    bool isLunar = mc.isLunar;
+
+    final result = await showDialog<ManualCharacter>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            String dateText() {
+              if (isLunar) {
+                try {
+                  final lunar = Lunar.fromYmd(
+                    selectedDate.year,
+                    selectedDate.month,
+                    selectedDate.day,
+                  );
+                  return '农历 ${lunar.getYearInGanZhi()}年 ${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}';
+                } catch (_) {
+                  return '无效的农历日期';
+                }
+              }
+              return hasYear
+                  ? '${selectedDate.year}年${selectedDate.month}月${selectedDate.day}日'
+                  : '${selectedDate.month}月${selectedDate.day}日';
+            }
+
+            return AlertDialog(
+              title: const Text('编辑角色信息'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: '姓名',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('生日日期'),
+                      subtitle: Text(dateText()),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(1900),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setDialogState(() => selectedDate = picked);
+                        }
+                      },
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('按农历计算'),
+                      value: isLunar,
+                      onChanged: (val) {
+                        if (val && !hasYear) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('农历计算需要包含年份')),
+                          );
+                          return;
+                        }
+                        setDialogState(() => isLunar = val);
+                      },
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('包含年份'),
+                      value: hasYear,
+                      onChanged: (val) {
+                        if (!val && isLunar) {
+                          setDialogState(() => isLunar = false);
+                        }
+                        setDialogState(() => hasYear = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final name = nameController.text.trim();
+                    if (name.isEmpty) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('请输入姓名')));
+                      return;
+                    }
+                    final updated = ManualCharacter(
+                      id: mc.id,
+                      notificationId: mc.notificationId,
+                      name: name,
+                      avatarPath: mc.avatarPath,
+                      birthYear: hasYear ? selectedDate.year : null,
+                      birthMonth: selectedDate.month,
+                      birthDay: selectedDate.day,
+                      notify: mc.notify,
+                      isLunar: isLunar,
+                      isSelf: mc.isSelf,
+                      avatarColor: mc.avatarColor,
+                    );
+                    Navigator.pop(ctx, updated);
+                  },
+                  child: const Text('保存'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+
+    if (result != null && mounted) {
+      await Provider.of<CharacterProvider>(
+        context,
+        listen: false,
+      ).updateCharacter(result);
+      setState(() => _localCharacter = result);
+    }
+  }
+
   Future<void> _openBangumiPage() async {
     final id = bangumiId;
     if (id == null) return;
@@ -320,6 +466,12 @@ class _CharacterDetailScreenState extends State<CharacterDetailScreen> {
               icon: const Icon(Icons.open_in_browser),
               tooltip: '在 Bangumi 中查看',
               onPressed: _openBangumiPage,
+            ),
+          if (isLocalMode && !isSelf && _localCharacter is ManualCharacter)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: '编辑角色信息',
+              onPressed: _editManualCharacter,
             ),
           if (isLocalMode && !isSelf)
             IconButton(
