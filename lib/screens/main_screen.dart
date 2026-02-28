@@ -70,6 +70,10 @@ class _MainScreenState extends State<MainScreen> {
         onTap: _goBranch,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.cake), label: '生日'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.cake_outlined),
+            label: 'Bangumi生日',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: '人物'),
         ],
       ),

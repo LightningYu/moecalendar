@@ -7,6 +7,9 @@ class AppRoutes {
   static const String birthTab = '/birth';
   static const String characterTab = '/character';
 
+  // 今日Bangumi生日角色Tab
+  static const String bangumiBirthdayTab = '/bangumi_birthday';
+
   // ============ 子路由（相对路径） ============
   static const String detail = 'detail';
   static const String addManual = 'add_manual';

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:moecalendar/screens/bangumi/bangumi_birthday_today_screen.dart'
+    show BangumiBirthdayTodayScreen;
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../screens/main_screen.dart';
@@ -139,6 +141,21 @@ final router = GoRouter(
                   },
                 ),
               ],
+            ),
+          ],
+        ),
+        // 新增Bangumi生日Tab
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: AppRoutes.bangumiBirthdayTab,
+              builder: (context, state) {
+                final now = DateTime.now();
+                return BangumiBirthdayTodayScreen(
+                  month: now.month,
+                  day: now.day,
+                );
+              },
             ),
           ],
         ),
